@@ -1,0 +1,31 @@
+name: myuzick
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: 5.9
+    TARGETED_DEVICE_FAMILY: "1,2"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+
+targets:
+  myuzick:
+    type: application
+    platform: iOS
+    sources:
+      - path: myuzick
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.myuzick
+        PRODUCT_NAME: myuzick
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: myuzick
+        INFOPLIST_KEY_UIBackgroundModes:
+          - audio
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        CODE_SIGN_STYLE: Automatic
+    scheme:
+      testTargets: []
