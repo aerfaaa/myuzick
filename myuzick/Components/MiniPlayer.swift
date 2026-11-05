@@ -5,10 +5,10 @@ struct MiniPlayer: View {
     @State private var showingNowPlaying = false
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             ArtworkView(data: audioPlayer.currentSong?.artworkData)
-                .frame(width: 42, height: 42)
-                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .frame(width: 46, height: 46)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             Button {
                 showingNowPlaying = true
@@ -29,32 +29,37 @@ struct MiniPlayer: View {
             .buttonStyle(.plain)
 
             Button {
+                audioPlayer.skipToPrevious()
+            } label: {
+                Image(systemName: "backward.fill")
+                    .font(.subheadline)
+                    .frame(width: 32, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Previous track")
+
+            Button {
                 audioPlayer.togglePlayback()
             } label: {
                 Image(systemName: audioPlayer.isPlaying ? "pause.fill" : "play.fill")
                     .font(.title3)
-                    .frame(width: 38, height: 42)
+                    .frame(width: 34, height: 44)
             }
             .buttonStyle(.plain)
-
-            Button {
-                audioPlayer.skipToNext()
-            } label: {
-                Image(systemName: "forward.end.fill")
-                    .font(.title3)
-                    .frame(width: 32, height: 42)
-            }
-            .buttonStyle(.plain)
+            .accessibilityLabel(audioPlayer.isPlaying ? "Pause" : "Play")
         }
-        .padding(8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(.white.opacity(0.08))
         }
         .sheet(isPresented: $showingNowPlaying) {
             NowPlayingView()
                 .environmentObject(audioPlayer)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 }

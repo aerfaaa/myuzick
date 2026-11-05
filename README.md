@@ -1,73 +1,42 @@
 # myuzick
 
-A modern, offline-first MP3 player for iPhone, built with SwiftUI and AVFoundation.
+A simple, modern offline MP3 player for iPhone.
 
-> Early development starter — the first milestone focuses on importing local MP3 files, reading their metadata, displaying a library, and basic playback.
+## v0.1 — basic player
 
-## Requirements
+The first version focuses on the essentials:
 
-- macOS with Xcode 15 or newer
-- iOS 17.0 deployment target
-- XcodeGen (to generate the Xcode project)
+- Import one or multiple MP3 files from the iOS Files app.
+- Keep imported audio in the app's local storage.
+- Read track title, artist, album, duration and embedded artwork.
+- Browse and search the music library.
+- Play, pause, seek, skip forward and skip backward.
+- Automatically continue to the next track in the current list.
+- Keep a mini-player available while browsing the library.
+- Open a full now-playing screen.
+- Retain the library after closing and reopening the app.
 
-## Getting started
+No account, streaming service or internet connection is required for playback.
 
-1. Install [XcodeGen](https://github.com/yonaskolb/XcodeGen).
-2. Clone this repository.
-3. From the repository root, run:
+## Build
 
-   ```sh
-   xcodegen generate
-   open myuzick.xcodeproj
-   ```
+Requirements: macOS with Xcode 15 or newer and XcodeGen.
 
-4. Select your Apple development team under **Signing & Capabilities**.
-5. Select an iPhone simulator or connected iPhone and build.
-
-The app bundle identifier is currently `com.example.myuzick`. Change it to your own unique identifier before installing on a physical device.
-
-## Current functionality
-
-- Import MP3 files using the iOS Files picker.
-- Copy imported audio into the app's private Documents/Music directory.
-- Read common audio metadata and embedded artwork.
-- Persist the library with SwiftData.
-- Browse and search imported tracks.
-- Play, pause, seek, and skip between tracks.
-- Keep a compact player visible across tabs.
-
-## Planned next
-
-- Background playback and lock-screen / Control Centre metadata.
-- Queue management and repeat / shuffle.
-- Playlists and sorting.
-- Better artwork fallbacks and empty states.
-- Additional formats (M4A, AAC, WAV; FLAC support to be evaluated separately).
-- Unit tests and CI build validation.
-
-## Architecture
-
-```text
-myuzick/
-├── App/                 App entry point
-├── Models/              SwiftData models
-├── Audio/               Playback engine
-├── Library/             Importing and metadata extraction
-├── Features/            SwiftUI screens
-├── Components/          Reusable UI
-└── Resources/           Asset catalog
+```sh
+xcodegen generate
+open myuzick.xcodeproj
 ```
 
-### Design decisions
+Set your own signing team and a unique bundle identifier before installing on a device.
 
-- **SwiftUI** for the native interface.
-- **AVPlayer** for local audio playback and seeking.
-- **SwiftData** for library metadata and playlists (planned).
-- **FileManager** for copying imported audio into app-owned storage.
-- **AVFoundation** for audio metadata and artwork extraction.
+## Technical stack
 
-Imported audio is copied into the app sandbox. The app does not stream music or require an account.
+- SwiftUI
+- AVFoundation / AVPlayer
+- AVAudioSession
+- SwiftData
+- FileManager
 
-## Notes
+## Scope
 
-This is an early starter project, not a finished App Store product. Test with non-DRM MP3 files first. Audio formats and metadata can vary between files. Background audio capability is declared in the project configuration; lock-screen controls and robust interruption handling are planned follow-up work.
+This is an early development build. Background audio is configured at the app level, but lock-screen metadata and remote transport controls are not implemented yet. Playlists, equaliser, shuffle and additional audio formats are intentionally deferred until the basic player is stable.

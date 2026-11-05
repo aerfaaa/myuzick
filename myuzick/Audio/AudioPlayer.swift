@@ -12,17 +12,13 @@ final class AudioPlayer: ObservableObject {
 
     private var player: AVPlayer?
     private var timeObserver: Any?
+    private var observedPlayer: AVPlayer?
+    private var endObserver: NSObjectProtocol?
     private var queue: [Song] = []
-    private var currentIndex: Int = 0
+    private var currentIndex = 0
 
     init() {
         configureAudioSession()
-    }
-
-    deinit {
-        if let timeObserver, let player {
-            player.removeTimeObserver(timeObserver)
-        }
     }
 
     func play(_ song: Song, from songs: [Song]? = nil) {
@@ -44,8 +40,13 @@ final class AudioPlayer: ObservableObject {
             player.pause()
             isPlaying = false
         } else {
-            player.play()
-            isPlaying = true
+            do {
+                try AVAudioSession.sharedInstance().setActive(true)
+                player.play()
+                isPlaying = true
+            } catch {
+                playbackError = "Couldn't resume playback: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -71,10 +72,22 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
+    func stop() {
+        player?.pause()
+        removeObservers()
+        player = nil
+        currentSong = nil
+        isPlaying = false
+        currentTime = 0
+        duration = 0
+        queue = []
+        currentIndex = 0
+    }
+
     private func configureAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [])
+            try session.setCategory(.playback, mode: .default)
             try session.setActive(true)
         } catch {
             playbackError = "Couldn't configure audio playback: \(error.localizedDescription)"
@@ -87,46 +100,70 @@ final class AudioPlayer: ObservableObject {
         let url = MusicFileStore.musicDirectory.appendingPathComponent(song.fileName)
 
         guard FileManager.default.fileExists(atPath: url.path) else {
-            playbackError = "The audio file for “\(song.displayTitle)” could not be found."
+            playbackError = "The audio file for “\(song.displayTitle)” couldn't be found."
             isPlaying = false
             return
         }
 
+        removeObservers()
         currentSong = song
         currentTime = 0
         duration = song.duration
 
         let item = AVPlayerItem(url: url)
-        player?.pause()
-        player = AVPlayer(playerItem: item)
-        installTimeObserver()
-        player?.play()
+        let newPlayer = AVPlayer(playerItem: item)
+        player = newPlayer
+        installTimeObserver(on: newPlayer)
+        installEndObserver(for: item)
+        newPlayer.play()
         isPlaying = true
         playbackError = nil
+    }
 
-        Task {
-            let assetDuration = try? await item.asset.load(.duration)
-            if let seconds = assetDuration?.seconds, seconds.isFinite, seconds > 0 {
-                duration = seconds
+    private func installTimeObserver(on player: AVPlayer) {
+        let interval = CMTime(seconds: 0.25, preferredTimescale: 600)
+        observedPlayer = player
+        timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
+            guard let self else { return }
+            Task { @MainActor in
+                self.currentTime = time.seconds.isFinite ? time.seconds : 0
+                if let seconds = self.player?.currentItem?.duration.seconds,
+                   seconds.isFinite, seconds > 0 {
+                    self.duration = seconds
+                }
             }
         }
     }
 
-    private func installTimeObserver() {
-        if let timeObserver, let player {
-            player.removeTimeObserver(timeObserver)
-        }
-
-        let interval = CMTime(seconds: 0.25, preferredTimescale: 600)
-        timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-            guard let self else { return }
+    private func installEndObserver(for item: AVPlayerItem) {
+        endObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: item,
+            queue: .main
+        ) { [weak self] _ in
             Task { @MainActor in
-                self.currentTime = time.seconds.isFinite ? time.seconds : 0
-                if let itemDuration = self.player?.currentItem?.duration.seconds,
-                   itemDuration.isFinite, itemDuration > 0 {
-                    self.duration = itemDuration
+                guard let self else { return }
+                if self.currentIndex + 1 < self.queue.count {
+                    self.currentIndex += 1
+                    self.loadCurrentSong()
+                } else {
+                    self.isPlaying = false
+                    self.currentTime = self.duration
                 }
             }
         }
+    }
+
+    private func removeObservers() {
+        if let timeObserver, let observedPlayer {
+            observedPlayer.removeTimeObserver(timeObserver)
+        }
+        timeObserver = nil
+        observedPlayer = nil
+
+        if let endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+        }
+        endObserver = nil
     }
 }
