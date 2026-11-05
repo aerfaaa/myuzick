@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 struct LibraryView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var audioPlayer: AudioPlayer
-    @Query(sort: \\Song.dateAdded, order: .reverse) private var songs: [Song]
+    @Query(sort: \Song.dateAdded, order: .reverse) private var songs: [Song]
 
     @State private var showingImporter = false
     @State private var searchText = ""
