@@ -12,9 +12,9 @@ permissions:
 
 jobs:
   build:
-    name: Build iOS app
+    name: Build iPhone IPA
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Check out repository
@@ -30,24 +30,6 @@ jobs:
 
       - name: Generate Xcode project
         run: xcodegen generate
-
-      - name: Build for iOS Simulator
-        run: |
-          xcodebuild \
-            -project myuzick.xcodeproj \
-            -scheme myuzick \
-            -sdk iphonesimulator \
-            -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build/DerivedData \
-            CODE_SIGNING_ALLOWED=NO \
-            build
-
-      - name: Package Simulator app
-        run: |
-          APP_PATH="build/DerivedData/Build/Products/Debug-iphonesimulator/myuzick.app"
-          test -d "$APP_PATH"
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" myuzick-simulator-app.zip
 
       - name: Build unsigned iPhone archive
         run: |
@@ -72,14 +54,6 @@ jobs:
           zip -qry ../myuzick-unsigned.ipa Payload
           cd ..
           test -s myuzick-unsigned.ipa
-
-      - name: Upload Simulator build
-        uses: actions/upload-artifact@v4
-        with:
-          name: myuzick-ios-simulator
-          path: myuzick-simulator-app.zip
-          if-no-files-found: error
-          retention-days: 14
 
       - name: Upload unsigned iPhone IPA
         uses: actions/upload-artifact@v4
