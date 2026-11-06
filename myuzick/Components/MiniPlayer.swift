@@ -15,11 +15,11 @@ struct MiniPlayer: View {
             } label: {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(audioPlayer.currentSong?.displayTitle ?? "")
-                        .font(.subheadline.weight(.semibold))
+                        .font(AppFont.font(size: 15, weight: .semibold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                     Text(audioPlayer.currentSong?.artist ?? "")
-                        .font(.caption)
+                        .font(AppFont.font(size: 12))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }

@@ -8,15 +8,34 @@ enum MusicFileStore {
         return directory
     }()
     private static let bookmarkKey = "myuzick.originalMusicFolderBookmark"
+    static let coverDirectory: URL = {
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("AnimatedCovers", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }()
     static let linkedPrefix = "linked://"
+    static let supportedAudioExtensions: Set<String> = ["mp3", "m4a", "aac", "wav", "aif", "aiff", "caf", "flac", "alac"]
 
     static func importFile(from sourceURL: URL) throws -> URL {
         let access = sourceURL.startAccessingSecurityScopedResource()
         defer { if access { sourceURL.stopAccessingSecurityScopedResource() } }
-        guard sourceURL.pathExtension.lowercased() == "mp3" else { throw ImportError.unsupportedFormat }
+        guard supportedAudioExtensions.contains(sourceURL.pathExtension.lowercased()) else { throw ImportError.unsupportedFormat }
         let destination = uniqueDestination(for: sourceURL.lastPathComponent)
         try FileManager.default.copyItem(at: sourceURL, to: destination)
         return destination
+    }
+
+    static func storeAnimatedCover(from source: URL) throws -> String {
+        let access = source.startAccessingSecurityScopedResource()
+        defer { if access { source.stopAccessingSecurityScopedResource() } }
+        let ext = source.pathExtension.isEmpty ? "mov" : source.pathExtension
+        let name = UUID().uuidString + "." + ext
+        try FileManager.default.copyItem(at: source, to: coverDirectory.appendingPathComponent(name))
+        return name
+    }
+
+    static func animatedCoverURL(for filename: String) -> URL {
+        coverDirectory.appendingPathComponent(filename)
     }
 
     static func importFolder(from folderURL: URL) throws -> [URL] {
@@ -40,7 +59,7 @@ enum MusicFileStore {
             throw ImportError.unreadableFolder
         }
         var result: [URL] = []
-        for case let url as URL in enumerator where url.pathExtension.lowercased() == "mp3" {
+        for case let url as URL in enumerator where supportedAudioExtensions.contains(url.pathExtension.lowercased()) {
             if (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true { result.append(url) }
         }
         return result
@@ -89,7 +108,7 @@ enum MusicFileStore {
         case unsupportedFormat, unreadableFolder
         var errorDescription: String? {
             switch self {
-            case .unsupportedFormat: return "This version supports MP3 files only."
+            case .unsupportedFormat: return "This audio format is not supported. Try MP3, M4A, AAC, WAV, AIFF, CAF or FLAC."
             case .unreadableFolder: return "Couldn't read that folder."
             }
         }

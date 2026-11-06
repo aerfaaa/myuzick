@@ -4,7 +4,8 @@ import UniformTypeIdentifiers
 
 struct LibraryView: View {
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var audioPlayer: AudioPlayer
+    @Environment(\.audioPlayerReference) private var audioPlayerReference
+    private var audioPlayer: AudioPlayer { audioPlayerReference! }
     @Query(sort: \Song.dateAdded, order: .reverse) private var songs: [Song]
     @State private var showingImporter = false
     @State private var showingSettings = false
@@ -12,6 +13,7 @@ struct LibraryView: View {
     @State private var searchText = ""
     @State private var importMessage: String?
     @State private var isImporting = false
+    @State private var editingSong: Song?
 
     private var filteredSongs: [Song] {
         guard !searchText.isEmpty else { return songs }
@@ -41,10 +43,13 @@ struct LibraryView: View {
                     }
                 }
                 .searchable(text: $searchText, prompt: "Search your music")
+                .sheet(item: $editingSong) { song in
+                    MetadataEditorView(song: song)
+                }
                 .sheet(isPresented: $showingSettings) {
                     SettingsView().environmentObject(audioPlayer).presentationDetents([.large]).presentationDragIndicator(.visible)
                 }
-                .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.mp3], allowsMultipleSelection: true, onCompletion: handleImport)
+                .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.audio], allowsMultipleSelection: true, onCompletion: handleImport)
                 .fileImporter(isPresented: $showingFolderPicker, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleFolderImport)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     if audioPlayer.currentSong != nil {
@@ -63,7 +68,7 @@ struct LibraryView: View {
         ContentUnavailableView {
             Label("Your music belongs here", systemImage: "music.note")
         } description: {
-            Text("Link a folder in Files to play original MP3s without copying them into myuzick.")
+            Text("Link a folder in Files to play supported audio files without copying them into myuzick.")
         } actions: {
             Button { showingFolderPicker = true } label: { Label("Link music folder", systemImage: "folder.badge.plus") }.buttonStyle(.borderedProminent)
         }
@@ -73,14 +78,20 @@ struct LibraryView: View {
         List {
             Section {
                 ForEach(filteredSongs) { song in
-                    SongRow(song: song) { audioPlayer.play(song, from: filteredSongs) }.listRowBackground(Color.clear)
+                    SongRow(song: song) { audioPlayer.play(song, from: filteredSongs) }
+                        .contextMenu {
+                            Button { editingSong = song } label: { Label("Edit Metadata", systemImage: "pencil") }
+                            Button { audioPlayer.addToQueue(song) } label: { Label("Add to Queue", systemImage: "text.badge.plus") }
+                            Button { audioPlayer.playNext(song) } label: { Label("Play Next", systemImage: "text.insert") }
+                        }
+                        .listRowBackground(Color.clear)
                 }.onDelete(perform: deleteSongs)
             } header: {
                 HStack {
                     Text(searchText.isEmpty ? "ALL SONGS" : "SEARCH RESULTS")
                     Spacer()
                     Text("\(filteredSongs.count) TRACKS").foregroundStyle(.tertiary)
-                }.font(.caption.weight(.semibold)).tracking(1)
+                }.font(AppFont.font(size: 11, weight: .semibold)).tracking(1)
             }
         }.listStyle(.plain).overlay { if filteredSongs.isEmpty { ContentUnavailableView.search(text: searchText) } }
     }
@@ -104,7 +115,7 @@ struct LibraryView: View {
                 do {
                     let files = try MusicFileStore.importFolder(from: folder)
                     let count = await registerLinkedFiles(files, in: folder)
-                    importMessage = "Linked \(count) original MP3 file(s). No audio files were copied."
+                    importMessage = "Linked \(count) original audio file(s). No audio files were copied."
                 } catch { importMessage = error.localizedDescription }
             }
         }
@@ -122,7 +133,7 @@ struct LibraryView: View {
             }
             try? modelContext.save()
             isImporting = false
-            importMessage = "Imported \(copies.count) copied MP3 file(s)."
+            importMessage = "Imported \(copies.count) copied audio file(s)."
         }
     }
 
@@ -152,7 +163,7 @@ struct LibraryView: View {
                 }
                 _ = await registerLinkedFiles(files, in: access.url)
                 try? modelContext.save()
-                if !silent { importMessage = "Folder refreshed. The library now matches the MP3s in the original folder." }
+                if !silent { importMessage = "Folder refreshed. The library now matches supported audio files in the original folder." }
             } catch { if !silent { importMessage = error.localizedDescription } }
         }
     }

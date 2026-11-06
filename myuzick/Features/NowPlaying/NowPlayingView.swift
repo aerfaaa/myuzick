@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct NowPlayingView: View {
     @EnvironmentObject private var audioPlayer: AudioPlayer
@@ -7,6 +8,10 @@ struct NowPlayingView: View {
     @State private var lyricsMessage = "Find synced lyrics"
     @State private var isLoadingLyrics = false
     @State private var animateArtwork = false
+    @State private var showingQueue = false
+    @State private var showingCoverPicker = false
+    @State private var coverAlert = false
+    @State private var coverMessage = ""
 
     private var activeLine: Int {
         lyrics.lastIndex(where: { $0.time <= audioPlayer.currentTime }) ?? 0
@@ -18,17 +23,25 @@ struct NowPlayingView: View {
                 backgroundGradient
                 ScrollView {
                     VStack(spacing: 25) {
-                        ArtworkView(data: audioPlayer.currentSong?.artworkData)
-                            .aspectRatio(1, contentMode: .fit)
-                            .frame(maxWidth: 330)
-                            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                            .shadow(color: .black.opacity(0.35), radius: 28, y: 16)
-                            .padding(.horizontal, 30)
+                        ZStack(alignment: .bottom) {
+                            if let song = audioPlayer.currentSong, let filename = AlbumCoverStore.filename(for: song) {
+                                AnimatedCoverView(url: MusicFileStore.animatedCoverURL(for: filename))
+                            } else {
+                                ArtworkView(data: audioPlayer.currentSong?.artworkData)
+                            }
+                            LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom)
+                                .frame(height: 110)
+                        }
+                        .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                        .frame(maxWidth: 330)
+                        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                        .shadow(color: .black.opacity(0.35), radius: 28, y: 16)
+                        .padding(.horizontal, 30)
                         VStack(spacing: 7) {
                             Text(audioPlayer.currentSong?.displayTitle ?? "Nothing playing")
-                                .font(.title2.weight(.bold)).lineLimit(1)
+                                .font(AppFont.font(size: 22, weight: .bold)).lineLimit(1)
                             Text(audioPlayer.currentSong?.artist ?? "")
-                                .font(.subheadline).foregroundStyle(.white.opacity(0.68))
+                                .font(AppFont.font(size: 15)).foregroundStyle(.white.opacity(0.68))
                         }
                         .padding(.horizontal, 24)
                         playbackControls
@@ -41,19 +54,47 @@ struct NowPlayingView: View {
             .foregroundStyle(.white)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Text("NOW PLAYING").font(.caption.weight(.bold)).tracking(2)
+                    Text("NOW PLAYING").font(AppFont.font(size: 11, weight: .bold)).tracking(2)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }.foregroundStyle(.white)
+                    Menu {
+                        Button { showingCoverPicker = true } label: { Label("Upload Animated Cover", systemImage: "video.badge.plus") }
+                        if let song = audioPlayer.currentSong, AlbumCoverStore.filename(for: song) != nil {
+                            Button(role: .destructive) { removeAnimatedCover() } label: { Label("Remove Animated Cover", systemImage: "trash") }
+                        }
+                        Button("Done") { dismiss() }
+                    } label: { Image(systemName: "ellipsis.circle").foregroundStyle(.white) }
                 }
             }
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .task(id: audioPlayer.currentSong?.id) { await loadLyrics() }
+            .sheet(isPresented: $showingQueue) { queueSheet }
+            .fileImporter(isPresented: $showingCoverPicker, allowedContentTypes: [.movie, .mpeg4Movie, .quickTimeMovie], allowsMultipleSelection: false) { result in
+                switch result {
+                case .success(let urls):
+                    if let url = urls.first {
+                        do {
+                            let filename = try MusicFileStore.storeAnimatedCover(from: url)
+                            if let song = audioPlayer.currentSong {
+                                if let oldName = AlbumCoverStore.filename(for: song) { try? FileManager.default.removeItem(at: MusicFileStore.animatedCoverURL(for: oldName)) }
+                                AlbumCoverStore.set(filename, for: song)
+                            }
+                        } catch { coverMessage = error.localizedDescription; coverAlert = true }
+                    }
+                case .failure(let error): coverMessage = error.localizedDescription; coverAlert = true
+                }
+            }
+            .alert("Animated Cover", isPresented: $coverAlert) { Button("OK", role: .cancel) { } } message: { Text(coverMessage) }
             .alert("Playback", isPresented: Binding(get: { audioPlayer.playbackError != nil }, set: { if !$0 { audioPlayer.playbackError = nil } })) {
                 Button("OK", role: .cancel) { audioPlayer.playbackError = nil }
             } message: { Text(audioPlayer.playbackError ?? "") }
         }
+    }
+
+    private func removeAnimatedCover() {
+        guard let song = audioPlayer.currentSong, let filename = AlbumCoverStore.remove(for: song) else { return }
+        try? FileManager.default.removeItem(at: MusicFileStore.animatedCoverURL(for: filename))
     }
 
     private var backgroundGradient: some View {
@@ -76,7 +117,7 @@ struct NowPlayingView: View {
                 Spacer()
                 Text(max(0, audioPlayer.duration - audioPlayer.currentTime).formattedTime)
             }
-            .font(.caption.monospacedDigit()).foregroundStyle(.white.opacity(0.65))
+            .font(AppFont.font(size: 12).monospacedDigit()).foregroundStyle(.white.opacity(0.65))
             HStack(spacing: 42) {
                 Button { audioPlayer.skipToPrevious() } label: { Image(systemName: "backward.end.fill").font(.title2) }
                 Button { audioPlayer.togglePlayback() } label: {
@@ -87,8 +128,85 @@ struct NowPlayingView: View {
                 Button { audioPlayer.skipToNext() } label: { Image(systemName: "forward.end.fill").font(.title2) }
             }
             .buttonStyle(.plain).padding(.top, 5)
+            queueControls
         }
         .padding(.horizontal, 28)
+    }
+
+    private var queueControls: some View {
+        HStack(spacing: 34) {
+            Button { audioPlayer.setShuffle(!audioPlayer.isShuffling) } label: {
+                Image(systemName: "shuffle")
+                    .font(.title3)
+                    .foregroundStyle(audioPlayer.isShuffling ? .green : .white.opacity(0.7))
+            }
+            Button { audioPlayer.cycleRepeatMode() } label: {
+                Image(systemName: audioPlayer.repeatMode == .one ? "repeat.1" : "repeat")
+                    .font(.title3)
+                    .foregroundStyle(audioPlayer.repeatMode == .off ? .white.opacity(0.7) : .green)
+            }
+            Button { showingQueue = true } label: {
+                Image(systemName: "list.bullet")
+                    .font(.title3)
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 8)
+    }
+
+    private var queueSheet: some View {
+        NavigationStack {
+            List {
+                Section("Now Playing") {
+                    if let song = audioPlayer.currentSong {
+                        HStack(spacing: 12) {
+                            ArtworkView(data: song.artworkData).frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 7))
+                            VStack(alignment: .leading) {
+                                Text(song.displayTitle).font(.headline)
+                                Text(song.artist).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "waveform").foregroundStyle(.tint)
+                        }
+                    }
+                }
+                Section("Up Next · \(audioPlayer.upcomingSongs.count)") {
+                    ForEach(Array(audioPlayer.upcomingSongs.enumerated()), id: \.element.id) { index, song in
+                        HStack(spacing: 12) {
+                            ArtworkView(data: song.artworkData).frame(width: 42, height: 42).clipShape(RoundedRectangle(cornerRadius: 7))
+                            VStack(alignment: .leading) {
+                                Text(song.displayTitle).lineLimit(1)
+                                Text(song.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer()
+                            Text(song.duration.formattedTime).font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture { audioPlayer.play(song) }
+                    }
+                    .onDelete { offsets in
+                        let base = audioPlayer.currentQueue.count - audioPlayer.upcomingSongs.count
+                        for offset in offsets.sorted(by: >) {
+                            audioPlayer.removeFromQueue(at: offset + base)
+                        }
+                    }
+                    .onMove { source, destination in
+                        let base = audioPlayer.currentQueue.count - audioPlayer.upcomingSongs.count
+                        for offset in source {
+                            audioPlayer.moveQueueItem(from: offset + base, to: destination + base)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Playing Next")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { EditButton() }
+                ToolbarItem(placement: .topBarTrailing) { Button("Done") { showingQueue = false } }
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 
     private var lyricsPanel: some View {
@@ -113,7 +231,7 @@ struct NowPlayingView: View {
                             }
                         }
                     }
-                    .font(index == activeLine ? .title3.weight(.bold) : .body)
+                    .font(AppFont.font(size: index == activeLine ? 20 : 17, weight: index == activeLine ? .bold : .regular))
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 4)

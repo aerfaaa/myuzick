@@ -11,16 +11,25 @@ settings:
     TARGETED_DEVICE_FAMILY: "1,2"
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
 
+packages:
+  TagLibSwift:
+    url: https://github.com/jeonghi/TagLibSwift.git
+    revision: a36e48f43a4cea1fd41baa0c90acdb6f35444800
+
 targets:
   myuzick:
     type: application
     platform: iOS
     sources:
       - path: myuzick
+    dependencies:
+      - package: TagLibSwift
+        product: TagLibSwift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.myuzick
         PRODUCT_NAME: myuzick
+        SWIFT_OBJC_INTEROP_MODE: objcxx
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: myuzick
         INFOPLIST_KEY_UIBackgroundModes:

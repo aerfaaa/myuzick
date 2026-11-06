@@ -13,6 +13,9 @@ final class AudioPlayer: ObservableObject {
     @Published private(set) var duration: Double = 0
     @Published private(set) var waveformLevel: Double = 0
     @Published private(set) var eqGains: [Float] = [0, 0, 0, 0, 0]
+    @Published private(set) var isShuffling = false
+    @Published private(set) var repeatMode: RepeatMode = .off
+    @Published private(set) var queueRevision = 0
     @Published var playbackError: String?
 
     private let engine = AVAudioEngine()
@@ -21,6 +24,7 @@ final class AudioPlayer: ObservableObject {
     private var audioFile: AVAudioFile?
     private var originalFolderAccess: (url: URL, accessed: Bool)?
     private var queue: [Song] = []
+    private var originalQueue: [Song] = []
     private var currentIndex = 0
     private var timer: Timer?
     private var hapticEngine: CHHapticEngine?
@@ -54,16 +58,73 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
+    var upcomingSongs: [Song] {
+        guard !queue.isEmpty else { return [] }
+        return Array(queue.dropFirst(min(currentIndex + 1, queue.count)))
+    }
+
+    var currentQueue: [Song] { queue }
+
+    func setShuffle(_ enabled: Bool) {
+        guard isShuffling != enabled else { return }
+        isShuffling = enabled
+        guard currentSong != nil else { return }
+        let played = Array(queue.prefix(currentIndex + 1))
+        if enabled {
+            originalQueue = queue
+            queue = played + queue.dropFirst(currentIndex + 1).shuffled()
+        } else {
+            let playedIDs = Set(played.map(\.id))
+            let restored = originalQueue.filter { !playedIDs.contains($0.id) }
+            queue = played + restored
+        }
+        queueRevision += 1
+    }
+
+    func cycleRepeatMode() { repeatMode = repeatMode.next }
+
+    func addToQueue(_ song: Song) {
+        queue.append(song)
+        queueRevision += 1
+    }
+
+    func playNext(_ song: Song) {
+        queue.insert(song, at: min(currentIndex + 1, queue.count))
+        queueRevision += 1
+    }
+
+    func removeFromQueue(at index: Int) {
+        guard queue.indices.contains(index), index != currentIndex else { return }
+        queue.remove(at: index)
+        if index < currentIndex { currentIndex -= 1 }
+        queueRevision += 1
+    }
+
+    func moveQueueItem(from source: Int, to destination: Int) {
+        guard queue.indices.contains(source), queue.indices.contains(destination), source != currentIndex else { return }
+        let item = queue.remove(at: source)
+        let adjusted = source < destination ? destination - 1 : destination
+        queue.insert(item, at: max(currentIndex + 1, min(adjusted, queue.count)))
+        queueRevision += 1
+    }
+
     func play(_ song: Song, from songs: [Song]? = nil) {
         if let songs {
+            originalQueue = songs
             queue = songs
             currentIndex = songs.firstIndex(where: { $0.id == song.id }) ?? 0
+            if isShuffling {
+                let played = Array(queue.prefix(currentIndex + 1))
+                queue = played + queue.dropFirst(currentIndex + 1).shuffled()
+            }
         } else if queue.isEmpty || !queue.contains(where: { $0.id == song.id }) {
             queue = [song]
+            originalQueue = [song]
             currentIndex = 0
         } else {
             currentIndex = queue.firstIndex(where: { $0.id == song.id }) ?? 0
         }
+        queueRevision += 1
         loadCurrentSong()
     }
 
@@ -97,8 +158,11 @@ final class AudioPlayer: ObservableObject {
     }
 
     func skipToNext() {
-        guard !queue.isEmpty else { return }
-        currentIndex = (currentIndex + 1) % queue.count
+        guard currentIndex + 1 < queue.count else {
+            if repeatMode == .all, !queue.isEmpty { currentIndex = 0; loadCurrentSong() }
+            return
+        }
+        currentIndex += 1
         loadCurrentSong()
     }
 
@@ -121,7 +185,10 @@ final class AudioPlayer: ObservableObject {
         currentTime = 0
         duration = 0
         queue = []
+        originalQueue = []
         currentIndex = 0
+        if let access = originalFolderAccess, access.accessed { access.url.stopAccessingSecurityScopedResource() }
+        originalFolderAccess = nil
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
@@ -147,7 +214,7 @@ final class AudioPlayer: ObservableObject {
         engine.attach(equalizer)
         engine.connect(playerNode, to: equalizer, format: nil)
         engine.connect(equalizer, to: engine.mainMixerNode, format: nil)
-        playerNode.installTap(onBus: 0, bufferSize: 2048, format: nil) { [weak self] buffer, _ in
+        playerNode.installTap(onBus: 0, bufferSize: 8192, format: nil) { [weak self] buffer, _ in
             guard let channel = buffer.floatChannelData?[0] else { return }
             let count = Int(buffer.frameLength)
             guard count > 0 else { return }
@@ -215,8 +282,13 @@ final class AudioPlayer: ObservableObject {
 
     private func trackFinished() {
         guard isPlaying else { return }
-        if currentIndex + 1 < queue.count {
+        if repeatMode == .one {
+            loadCurrentSong()
+        } else if currentIndex + 1 < queue.count {
             currentIndex += 1
+            loadCurrentSong()
+        } else if repeatMode == .all, !queue.isEmpty {
+            currentIndex = 0
             loadCurrentSong()
         } else {
             isPlaying = false
@@ -306,7 +378,7 @@ final class AudioPlayer: ObservableObject {
                     sessionKey: session
                 )
             } catch {
-                playbackError = "Last.fm scrobble failed: \\(error.localizedDescription)"
+                playbackError = "Last.fm scrobble failed: \(error.localizedDescription)"
             }
         }
     }
@@ -336,5 +408,17 @@ final class AudioPlayer: ObservableObject {
             let player = try hapticEngine.makePlayer(with: pattern)
             try player.start(atTime: 0)
         } catch { }
+    }
+}
+
+
+enum RepeatMode: String, CaseIterable {
+    case off, all, one
+    var next: RepeatMode {
+        switch self {
+        case .off: return .all
+        case .all: return .one
+        case .one: return .off
+        }
     }
 }
