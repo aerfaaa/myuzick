@@ -1,11 +1,20 @@
 import SwiftUI
 
 struct ArtworkView: View {
+    private static let cache = NSCache<NSString, UIImage>()
+    private var decodedImage: UIImage? {
+        guard let data else { return nil }
+        let key = NSString(string: String(data.hashValue))
+        if let image = Self.cache.object(forKey: key) { return image }
+        guard let image = UIImage(data: data) else { return nil }
+        Self.cache.setObject(image, forKey: key)
+        return image
+    }
     let data: Data?
 
     var body: some View {
         Group {
-            if let data, let image = UIImage(data: data) {
+            if let image = decodedImage {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
