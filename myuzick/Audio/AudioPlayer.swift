@@ -1,5 +1,7 @@
 import AVFoundation
 import Combine
+import CoreHaptics
+import MediaPlayer
 import Foundation
 
 @MainActor
@@ -8,17 +10,38 @@ final class AudioPlayer: ObservableObject {
     @Published private(set) var isPlaying = false
     @Published private(set) var currentTime: Double = 0
     @Published private(set) var duration: Double = 0
+    @Published private(set) var waveformLevel: Double = 0
     @Published var playbackError: String?
 
-    private var player: AVPlayer?
-    private var timeObserver: Any?
-    private var observedPlayer: AVPlayer?
-    private var endObserver: NSObjectProtocol?
+    private let engine = AVAudioEngine()
+    private let playerNode = AVAudioPlayerNode()
+    private let equalizer = AVAudioUnitEQ(numberOfBands: 5)
+    private var audioFile: AVAudioFile?
     private var queue: [Song] = []
     private var currentIndex = 0
+    private var timer: Timer?
+    private var hapticEngine: CHHapticEngine?
+    private var lastHapticTime: TimeInterval = 0
+    private let frequencies: [Float] = [60, 230, 910, 3600, 14000]
+
+    var eqGains: [Float] {
+        equalizer.bands.map { $0.gain }
+    }
 
     init() {
         configureAudioSession()
+        configureAudioGraph()
+        configureHaptics()
+        configureRemoteCommands()
+    }
+
+    func setEQGain(_ gain: Float, forBand index: Int) {
+        guard equalizer.bands.indices.contains(index) else { return }
+        equalizer.bands[index].gain = max(-12, min(12, gain))
+    }
+
+    func resetEQ() {
+        equalizer.bands.forEach { $0.gain = 0 }
     }
 
     func play(_ song: Song, from songs: [Song]? = nil) {
@@ -35,25 +58,31 @@ final class AudioPlayer: ObservableObject {
     }
 
     func togglePlayback() {
-        guard let player else { return }
         if isPlaying {
-            player.pause()
+            playerNode.pause()
             isPlaying = false
-        } else {
-            do {
-                try AVAudioSession.sharedInstance().setActive(true)
-                player.play()
-                isPlaying = true
-            } catch {
-                playbackError = "Couldn't resume playback: \(error.localizedDescription)"
+            stopTimer()
+            updateNowPlaying()
+        } else if audioFile != nil {
+            if playerNode.isPlaying {
+                playerNode.play()
+            } else {
+                scheduleAudio(from: currentTime)
             }
+            isPlaying = true
+            startTimer()
+            updateNowPlaying()
         }
     }
 
     func seek(to seconds: Double) {
-        let safeTime = max(0, min(seconds, duration))
-        player?.seek(to: CMTime(seconds: safeTime, preferredTimescale: 600))
-        currentTime = safeTime
+        guard audioFile != nil else { return }
+        let wasPlaying = isPlaying
+        playerNode.stop()
+        currentTime = max(0, min(seconds, duration))
+        scheduleAudio(from: currentTime)
+        if wasPlaying { playerNode.play() }
+        updateNowPlaying()
     }
 
     func skipToNext() {
@@ -73,24 +102,51 @@ final class AudioPlayer: ObservableObject {
     }
 
     func stop() {
-        player?.pause()
-        removeObservers()
-        player = nil
+        playerNode.stop()
+        stopTimer()
         currentSong = nil
+        audioFile = nil
         isPlaying = false
         currentTime = 0
         duration = 0
         queue = []
         currentIndex = 0
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
     private func configureAudioSession() {
         do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default)
-            try session.setActive(true)
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
         } catch {
             playbackError = "Couldn't configure audio playback: \(error.localizedDescription)"
+        }
+    }
+
+    private func configureAudioGraph() {
+        for (index, band) in equalizer.bands.enumerated() {
+            band.filterType = .parametric
+            band.frequency = frequencies[index]
+            band.bandwidth = 1.0
+            band.gain = 0
+            band.bypass = false
+        }
+        engine.attach(playerNode)
+        engine.attach(equalizer)
+        engine.connect(playerNode, to: equalizer, format: nil)
+        engine.connect(equalizer, to: engine.mainMixerNode, format: nil)
+        playerNode.installTap(onBus: 0, bufferSize: 2048, format: nil) { [weak self] buffer, _ in
+            guard let channel = buffer.floatChannelData?[0] else { return }
+            let count = Int(buffer.frameLength)
+            guard count > 0 else { return }
+            var sum: Float = 0
+            for index in 0..<count { sum += channel[index] * channel[index] }
+            let rms = sqrt(sum / Float(count))
+            let level = min(1, Double(rms) * 4)
+            Task { @MainActor in self?.receiveWaveformLevel(level) }
+        }
+        do { try engine.start() } catch {
+            playbackError = "Audio engine couldn't start: \(error.localizedDescription)"
         }
     }
 
@@ -98,72 +154,138 @@ final class AudioPlayer: ObservableObject {
         guard queue.indices.contains(currentIndex) else { return }
         let song = queue[currentIndex]
         let url = MusicFileStore.musicDirectory.appendingPathComponent(song.fileName)
-
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            playbackError = "The audio file for “\(song.displayTitle)” couldn't be found."
+        do {
+            let file = try AVAudioFile(forReading: url)
+            playerNode.stop()
+            audioFile = file
+            currentSong = song
+            currentTime = 0
+            duration = Double(file.length) / file.processingFormat.sampleRate
+            if !engine.isRunning { try engine.start() }
+            scheduleAudio(from: 0)
+            playerNode.play()
+            isPlaying = true
+            startTimer()
+            updateNowPlaying()
+            playbackError = nil
+        } catch {
+            playbackError = "Couldn't play “\(song.displayTitle)”: \(error.localizedDescription)"
             isPlaying = false
+        }
+    }
+
+    private func scheduleAudio(from seconds: Double) {
+        guard let file = audioFile else { return }
+        let sampleRate = file.processingFormat.sampleRate
+        let startFrame = AVAudioFramePosition(max(0, seconds) * sampleRate)
+        let remaining = AVAudioFrameCount(max(0, file.length - startFrame))
+        guard remaining > 0 else {
+            currentTime = 0
+            playerNode.scheduleFile(file, at: nil) { [weak self] in
+                Task { @MainActor in self?.trackFinished() }
+            }
             return
         }
-
-        removeObservers()
-        currentSong = song
-        currentTime = 0
-        duration = song.duration
-
-        let item = AVPlayerItem(url: url)
-        let newPlayer = AVPlayer(playerItem: item)
-        player = newPlayer
-        installTimeObserver(on: newPlayer)
-        installEndObserver(for: item)
-        newPlayer.play()
-        isPlaying = true
-        playbackError = nil
+        playerNode.scheduleSegment(file, startingFrame: startFrame, frameCount: remaining, at: nil) { [weak self] in
+            Task { @MainActor in self?.trackFinished() }
+        }
     }
 
-    private func installTimeObserver(on player: AVPlayer) {
-        let interval = CMTime(seconds: 0.25, preferredTimescale: 600)
-        observedPlayer = player
-        timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-            guard let self else { return }
+    private func trackFinished() {
+        guard isPlaying else { return }
+        if currentIndex + 1 < queue.count {
+            currentIndex += 1
+            loadCurrentSong()
+        } else {
+            isPlaying = false
+            currentTime = duration
+            stopTimer()
+            updateNowPlaying()
+        }
+    }
+
+    private func startTimer() {
+        stopTimer()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self.currentTime = time.seconds.isFinite ? time.seconds : 0
-                if let seconds = self.player?.currentItem?.duration.seconds,
-                   seconds.isFinite, seconds > 0 {
-                    self.duration = seconds
-                }
+                guard let self, self.isPlaying, let nodeTime = self.playerNode.lastRenderTime,
+                      let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime) else { return }
+                let elapsed = Double(playerTime.sampleTime) / playerTime.sampleRate
+                self.currentTime = min(self.duration, max(0, elapsed))
             }
         }
     }
 
-    private func installEndObserver(for item: AVPlayerItem) {
-        endObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: item,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                if self.currentIndex + 1 < self.queue.count {
-                    self.currentIndex += 1
-                    self.loadCurrentSong()
-                } else {
-                    self.isPlaying = false
-                    self.currentTime = self.duration
-                }
-            }
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func updateNowPlaying() {
+        guard let song = currentSong else { return }
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: song.displayTitle,
+            MPMediaItemPropertyArtist: song.artist,
+            MPMediaItemPropertyAlbumTitle: song.album,
+            MPMediaItemPropertyPlaybackDuration: duration,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
+        ]
+        if let data = song.artworkData, let image = UIImage(data: data) {
+            info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    private func configureRemoteCommands() {
+        let center = MPRemoteCommandCenter.shared()
+        center.playCommand.addTarget { [weak self] _ in
+            Task { @MainActor in self?.togglePlayback() }
+            return .success
+        }
+        center.pauseCommand.addTarget { [weak self] _ in
+            Task { @MainActor in if self?.isPlaying == true { self?.togglePlayback() } }
+            return .success
+        }
+        center.nextTrackCommand.addTarget { [weak self] _ in
+            Task { @MainActor in self?.skipToNext() }
+            return .success
+        }
+        center.previousTrackCommand.addTarget { [weak self] _ in
+            Task { @MainActor in self?.skipToPrevious() }
+            return .success
+        }
+        center.changePlaybackPositionCommand.addTarget { [weak self] event in
+            guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
+            Task { @MainActor in self?.seek(to: event.positionTime) }
+            return .success
         }
     }
 
-    private func removeObservers() {
-        if let timeObserver, let observedPlayer {
-            observedPlayer.removeTimeObserver(timeObserver)
-        }
-        timeObserver = nil
-        observedPlayer = nil
+    private func configureHaptics() {
+        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else { return }
+        do {
+            hapticEngine = try CHHapticEngine()
+            try hapticEngine?.start()
+        } catch { hapticEngine = nil }
+    }
 
-        if let endObserver {
-            NotificationCenter.default.removeObserver(endObserver)
-        }
-        endObserver = nil
+    private func receiveWaveformLevel(_ level: Double) {
+        waveformLevel = level
+        guard UserDefaults.standard.bool(forKey: "waveformHapticsEnabled"),
+              level > 0.22, let hapticEngine else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastHapticTime > 0.12 else { return }
+        lastHapticTime = now
+        let intensity = Float(min(1, max(0.15, level)))
+        let event = CHHapticEvent(eventType: .hapticTransient, parameters: [
+            CHHapticEventParameter(parameterID: .hapticIntensity, value: intensity),
+            CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.35)
+        ], relativeTime: 0)
+        do {
+            let pattern = try CHHapticPattern(events: [event], parameters: [])
+            let player = try hapticEngine.makePlayer(with: pattern)
+            try player.start(atTime: 0)
+        } catch { }
     }
 }
