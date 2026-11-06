@@ -124,7 +124,7 @@ struct SettingsView: View {
                 Section("Library & playback") {
                     LabeledContent("Audio engine", value: "AVAudioEngine")
                     LabeledContent("Music storage", value: "On this iPhone")
-                    LabeledContent("Supported format", value: "MP3")
+                    LabeledContent("Supported formats", value: "MP3 · M4A · AAC · WAV · AIFF · FLAC · CAF")
                 }
 
                 Section {
