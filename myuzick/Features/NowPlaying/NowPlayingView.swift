@@ -24,7 +24,7 @@ struct NowPlayingView: View {
                 ScrollView {
                     VStack(spacing: 25) {
                         ZStack(alignment: .bottom) {
-                            if let filename = audioPlayer.currentSong?.animatedCoverFileName {
+                            if let song = audioPlayer.currentSong, let filename = AlbumCoverStore.filename(for: song) {
                                 AnimatedCoverView(url: MusicFileStore.animatedCoverURL(for: filename))
                             } else {
                                 ArtworkView(data: audioPlayer.currentSong?.artworkData)
@@ -59,7 +59,7 @@ struct NowPlayingView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button { showingCoverPicker = true } label: { Label("Upload Animated Cover", systemImage: "video.badge.plus") }
-                        if audioPlayer.currentSong?.animatedCoverFileName != nil {
+                        if let song = audioPlayer.currentSong, AlbumCoverStore.filename(for: song) != nil {
                             Button(role: .destructive) { removeAnimatedCover() } label: { Label("Remove Animated Cover", systemImage: "trash") }
                         }
                         Button("Done") { dismiss() }
@@ -76,8 +76,10 @@ struct NowPlayingView: View {
                     if let url = urls.first {
                         do {
                             let filename = try MusicFileStore.storeAnimatedCover(from: url)
-                            if let oldName = audioPlayer.currentSong?.animatedCoverFileName { try? FileManager.default.removeItem(at: MusicFileStore.animatedCoverURL(for: oldName)) }
-                            audioPlayer.currentSong?.animatedCoverFileName = filename
+                            if let song = audioPlayer.currentSong {
+                                if let oldName = AlbumCoverStore.filename(for: song) { try? FileManager.default.removeItem(at: MusicFileStore.animatedCoverURL(for: oldName)) }
+                                AlbumCoverStore.set(filename, for: song)
+                            }
                         } catch { coverMessage = error.localizedDescription; coverAlert = true }
                     }
                 case .failure(let error): coverMessage = error.localizedDescription; coverAlert = true
@@ -91,9 +93,8 @@ struct NowPlayingView: View {
     }
 
     private func removeAnimatedCover() {
-        guard let song = audioPlayer.currentSong, let filename = song.animatedCoverFileName else { return }
+        guard let song = audioPlayer.currentSong, let filename = AlbumCoverStore.remove(for: song) else { return }
         try? FileManager.default.removeItem(at: MusicFileStore.animatedCoverURL(for: filename))
-        song.animatedCoverFileName = nil
     }
 
     private var backgroundGradient: some View {
