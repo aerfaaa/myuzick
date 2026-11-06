@@ -5,6 +5,20 @@ struct MiniPlayer: View {
     @State private var showingNowPlaying = false
 
     var body: some View {
+        Group {
+            if audioPlayer.currentSong != nil {
+                playerBar
+            }
+        }
+        .sheet(isPresented: $showingNowPlaying) {
+            NowPlayingView()
+                .environmentObject(audioPlayer)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+    }
+
+    private var playerBar: some View {
         HStack(spacing: 12) {
             ArtworkView(data: audioPlayer.currentSong?.artworkData)
                 .frame(width: 46, height: 46)
@@ -54,12 +68,6 @@ struct MiniPlayer: View {
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(.white.opacity(0.16))
-        }
-        .sheet(isPresented: $showingNowPlaying) {
-            NowPlayingView()
-                .environmentObject(audioPlayer)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
         }
     }
 }
