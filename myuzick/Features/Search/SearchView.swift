@@ -3,7 +3,8 @@ import SwiftUI
 
 struct SearchView: View {
     @Query(sort: \Song.title) private var songs: [Song]
-    @EnvironmentObject private var audioPlayer: AudioPlayer
+    @Environment(\.audioPlayerReference) private var audioPlayerReference
+    private var audioPlayer: AudioPlayer { audioPlayerReference! }
     @State private var query = ""
 
     private var results: [Song] {
