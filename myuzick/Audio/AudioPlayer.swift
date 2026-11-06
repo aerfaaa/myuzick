@@ -267,6 +267,30 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
+    private func submitScrobbleIfDue() {
+        guard let song = currentSong,
+              song.duration >= 30,
+              scrobbledSongID != song.id,
+              currentTime >= min(song.duration / 2, 240),
+              let apiKey = UserDefaults.standard.string(forKey: "lastfmAPIKey"), !apiKey.isEmpty,
+              let secret = UserDefaults.standard.string(forKey: "lastfmSharedSecret"), !secret.isEmpty,
+              let session = UserDefaults.standard.string(forKey: "lastfmSessionKey"), !session.isEmpty else { return }
+        scrobbledSongID = song.id
+        Task {
+            do {
+                try await LastFMScrobbler.scrobble(
+                    song: song,
+                    timestamp: Int(trackStartTimestamp),
+                    apiKey: apiKey,
+                    sharedSecret: secret,
+                    sessionKey: session
+                )
+            } catch {
+                playbackError = "Last.fm scrobble failed: \\(error.localizedDescription)"
+            }
+        }
+    }
+
     private func configureHaptics() {
         guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else { return }
         do {
