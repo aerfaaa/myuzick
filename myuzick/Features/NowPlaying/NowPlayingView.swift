@@ -6,6 +6,7 @@ struct NowPlayingView: View {
     @State private var lyrics: [LyricLine] = []
     @State private var lyricsMessage = "Find synced lyrics"
     @State private var isLoadingLyrics = false
+    @State private var animateArtwork = false
 
     private var activeLine: Int {
         lyrics.lastIndex(where: { $0.time <= audioPlayer.currentTime }) ?? 0
@@ -59,11 +60,12 @@ struct NowPlayingView: View {
         ZStack {
             LinearGradient(colors: [.black, .indigo.opacity(0.75), .purple.opacity(0.55), .black], startPoint: .topLeading, endPoint: .bottomTrailing)
             if let data = audioPlayer.currentSong?.artworkData, let image = UIImage(data: data) {
-                Image(uiImage: image).resizable().scaledToFill().blur(radius: 85).opacity(0.38).overlay(.black.opacity(0.52))
+                Image(uiImage: image).resizable().scaledToFill().blur(radius: 85).opacity(0.38).scaleEffect(animateArtwork ? 1.2 : 1.04).overlay(.black.opacity(0.52)).animation(.easeInOut(duration: 9).repeatForever(autoreverses: true), value: animateArtwork)
             }
         }
         .ignoresSafeArea()
         .animation(.easeInOut(duration: 1.2), value: audioPlayer.currentSong?.id)
+        .onAppear { animateArtwork = true }
     }
 
     private var playbackControls: some View {
