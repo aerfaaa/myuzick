@@ -115,7 +115,9 @@ struct LibraryView: View {
                 let didAccess = folder.startAccessingSecurityScopedResource()
                 defer { if didAccess { folder.stopAccessingSecurityScopedResource() }; isImporting = false }
                 do {
-                    let files = try MusicFileStore.importFolder(from: folder)
+                    let files = try await Task.detached(priority: .utility) {
+                        try MusicFileStore.importFolder(from: folder)
+                    }.value
                     let count = await registerLinkedFiles(files, in: folder)
                     importMessage = "Linked \(count) original audio file(s). No audio files were copied."
                 } catch { importMessage = error.localizedDescription }
@@ -198,7 +200,9 @@ struct LibraryView: View {
         Task { @MainActor in
             defer { if access.accessed { access.url.stopAccessingSecurityScopedResource() } }
             do {
-                let files = try MusicFileStore.scanOriginalFolder(at: access.url)
+                let files = try await Task.detached(priority: .utility) {
+                    try MusicFileStore.scanOriginalFolder(at: access.url)
+                }.value
                 let available = Set(files.map { MusicFileStore.storedPath(for: $0, in: access.url) })
                 for song in songs where MusicFileStore.isLinked(song.fileName) && !available.contains(song.fileName) {
                     if audioPlayer.currentSong?.id == song.id { audioPlayer.stop() }
