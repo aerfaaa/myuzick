@@ -39,9 +39,9 @@ struct NowPlayingView: View {
                         .padding(.horizontal, 30)
                         VStack(spacing: 7) {
                             Text(audioPlayer.currentSong?.displayTitle ?? "Nothing playing")
-                                .font(.title2.weight(.bold)).lineLimit(1)
+                                .font(AppFont.font(size: 22, weight: .bold)).lineLimit(1)
                             Text(audioPlayer.currentSong?.artist ?? "")
-                                .font(.subheadline).foregroundStyle(.white.opacity(0.68))
+                                .font(AppFont.font(size: 15)).foregroundStyle(.white.opacity(0.68))
                         }
                         .padding(.horizontal, 24)
                         playbackControls
@@ -54,7 +54,7 @@ struct NowPlayingView: View {
             .foregroundStyle(.white)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Text("NOW PLAYING").font(.caption.weight(.bold)).tracking(2)
+                    Text("NOW PLAYING").font(AppFont.font(size: 11, weight: .bold)).tracking(2)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -117,7 +117,7 @@ struct NowPlayingView: View {
                 Spacer()
                 Text(max(0, audioPlayer.duration - audioPlayer.currentTime).formattedTime)
             }
-            .font(.caption.monospacedDigit()).foregroundStyle(.white.opacity(0.65))
+            .font(AppFont.font(size: 12).monospacedDigit()).foregroundStyle(.white.opacity(0.65))
             HStack(spacing: 42) {
                 Button { audioPlayer.skipToPrevious() } label: { Image(systemName: "backward.end.fill").font(.title2) }
                 Button { audioPlayer.togglePlayback() } label: {
