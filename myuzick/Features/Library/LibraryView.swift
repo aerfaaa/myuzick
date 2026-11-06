@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 struct LibraryView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var audioPlayer: AudioPlayer
-    @Query(sort: \\Song.dateAdded, order: .reverse) private var songs: [Song]
+    @Query(sort: \Song.dateAdded, order: .reverse) private var songs: [Song]
     @State private var showingImporter = false
     @State private var showingSettings = false
     @State private var showingFolderPicker = false
@@ -127,7 +127,7 @@ struct LibraryView: View {
     }
 
     private func registerLinkedFiles(_ files: [URL], in folder: URL) async -> Int {
-        let existing = Set(songs.filter { MusicFileStore.isLinked($0.fileName) }.map(\\.fileName))
+        let existing = Set(songs.filter { MusicFileStore.isLinked($0.fileName) }.map(\.fileName))
         var added = 0
         for file in files {
             let storedPath = MusicFileStore.storedPath(for: file, in: folder)
