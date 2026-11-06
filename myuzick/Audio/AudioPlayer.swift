@@ -12,6 +12,7 @@ final class AudioPlayer: ObservableObject {
     @Published private(set) var currentTime: Double = 0
     @Published private(set) var duration: Double = 0
     @Published private(set) var waveformLevel: Double = 0
+    @Published private(set) var eqGains: [Float] = [0, 0, 0, 0, 0]
     @Published var playbackError: String?
 
     private let engine = AVAudioEngine()
@@ -29,10 +30,6 @@ final class AudioPlayer: ObservableObject {
     private var isAtEnd = false
     private let frequencies: [Float] = [60, 230, 910, 3600, 14000]
 
-    var eqGains: [Float] {
-        equalizer.bands.map { $0.gain }
-    }
-
     init() {
         configureAudioSession()
         configureAudioGraph()
@@ -44,6 +41,7 @@ final class AudioPlayer: ObservableObject {
         guard equalizer.bands.indices.contains(index) else { return }
         let safeGain = max(-12, min(12, gain))
         equalizer.bands[index].gain = safeGain
+        eqGains[index] = safeGain
         UserDefaults.standard.set(safeGain, forKey: "eqGain_\(index)")
     }
 
