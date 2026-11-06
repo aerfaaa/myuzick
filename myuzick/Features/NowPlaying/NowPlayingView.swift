@@ -185,8 +185,15 @@ struct NowPlayingView: View {
                         .onTapGesture { audioPlayer.play(song) }
                     }
                     .onDelete { offsets in
+                        let base = audioPlayer.currentQueue.count - audioPlayer.upcomingSongs.count
                         for offset in offsets.sorted(by: >) {
-                            audioPlayer.removeFromQueue(at: offset + (audioPlayer.currentQueue.count - audioPlayer.upcomingSongs.count))
+                            audioPlayer.removeFromQueue(at: offset + base)
+                        }
+                    }
+                    .onMove { source, destination in
+                        let base = audioPlayer.currentQueue.count - audioPlayer.upcomingSongs.count
+                        for offset in source {
+                            audioPlayer.moveQueueItem(from: offset + base, to: destination + base)
                         }
                     }
                 }
