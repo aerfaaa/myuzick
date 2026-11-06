@@ -127,29 +127,70 @@ struct LibraryView: View {
         guard !urls.isEmpty else { return }
         isImporting = true
         Task { @MainActor in
-            var copies: [URL] = []
-            for url in urls { if let copy = try? MusicFileStore.importFile(from: url) { copies.append(copy) } }
-            for url in copies {
-                guard let metadata = try? await MetadataReader.read(from: url) else { continue }
-                modelContext.insert(Song(title: metadata.title, artist: metadata.artist, album: metadata.album, duration: metadata.duration, fileName: url.lastPathComponent, artworkData: metadata.artworkData))
+            defer { isImporting = false }
+
+            // File copying can take seconds for large selections; keep it off the UI thread.
+            let copies = await withTaskGroup(of: URL?.self, returning: [URL].self) { group in
+                var iterator = urls.makeIterator()
+                for _ in 0..<min(3, urls.count) {
+                    if let url = iterator.next() {
+                        group.addTask(priority: .utility) {
+                            try? MusicFileStore.importFile(from: url)
+                        }
+                    }
+                }
+
+                var completed: [URL] = []
+                while let copy = await group.next() {
+                    if let copy { completed.append(copy) }
+                    if let next = iterator.next() {
+                        group.addTask(priority: .utility) {
+                            try? MusicFileStore.importFile(from: next)
+                        }
+                    }
+                }
+                return completed
+            }
+
+            // Read tags concurrently with a small cap, then insert/save once.
+            let metadataItems = await MetadataReader.readMany(from: copies, maxConcurrentReads: 4)
+            for item in metadataItems {
+                let metadata = item.metadata
+                modelContext.insert(Song(
+                    title: metadata.title,
+                    artist: metadata.artist,
+                    album: metadata.album,
+                    duration: metadata.duration,
+                    fileName: item.url.lastPathComponent,
+                    artworkData: metadata.artworkData
+                ))
             }
             try? modelContext.save()
-            isImporting = false
-            importMessage = "Imported \(copies.count) copied audio file(s)."
+            importMessage = "Imported \(metadataItems.count) of \(urls.count) selected audio file(s)."
         }
     }
 
     private func registerLinkedFiles(_ files: [URL], in folder: URL) async -> Int {
         let existing = Set(songs.filter { MusicFileStore.isLinked($0.fileName) }.map(\.fileName))
-        var added = 0
-        for file in files {
-            let storedPath = MusicFileStore.storedPath(for: file, in: folder)
-            guard !existing.contains(storedPath), let metadata = try? await MetadataReader.read(from: file) else { continue }
-            modelContext.insert(Song(title: metadata.title, artist: metadata.artist, album: metadata.album, duration: metadata.duration, fileName: storedPath, artworkData: metadata.artworkData))
-            added += 1
+        let newFiles = files.filter {
+            !existing.contains(MusicFileStore.storedPath(for: $0, in: folder))
+        }
+        guard !newFiles.isEmpty else { return 0 }
+
+        let metadataItems = await MetadataReader.readMany(from: newFiles, maxConcurrentReads: 4)
+        for item in metadataItems {
+            let metadata = item.metadata
+            modelContext.insert(Song(
+                title: metadata.title,
+                artist: metadata.artist,
+                album: metadata.album,
+                duration: metadata.duration,
+                fileName: MusicFileStore.storedPath(for: item.url, in: folder),
+                artworkData: metadata.artworkData
+            ))
         }
         try? modelContext.save()
-        return added
+        return metadataItems.count
     }
 
     private func refreshLinkedFolder(silent: Bool = false) {
