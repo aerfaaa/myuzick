@@ -91,7 +91,19 @@ enum LastFMScrobbler {
         }
     }
 
-    enum AuthenticationError: LocalizedError {\n        case server, invalidResponse, missingToken, rejected(String)\n        var errorDescription: String? {\n            switch self {\n            case .server: return "Last.fm authentication server could not be reached."\n            case .invalidResponse: return "Last.fm returned an unexpected authentication response."\n            case .missingToken: return "Start the Last.fm connection process again."\n            case .rejected(let message): return message\n            }\n        }\n    }\n\n    enum ScrobbleError: LocalizedError {
+    enum AuthenticationError: LocalizedError {
+        case server, invalidResponse, missingToken, rejected(String)
+        var errorDescription: String? {
+            switch self {
+            case .server: return "Last.fm authentication server could not be reached."
+            case .invalidResponse: return "Last.fm returned an unexpected authentication response."
+            case .missingToken: return "Start the Last.fm connection process again."
+            case .rejected(let message): return message
+            }
+        }
+    }
+
+    enum ScrobbleError: LocalizedError {
         case server
         case rejected(String)
         var errorDescription: String? {
