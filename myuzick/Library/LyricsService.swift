@@ -15,7 +15,9 @@ struct LyricLine: Identifiable {
 
 enum LyricsService {
     static func fetch(for song: Song) async throws -> [LyricLine] {
-        let sidecar = MusicFileStore.musicDirectory.appendingPathComponent(song.fileName).deletingPathExtension().appendingPathExtension("lrc")
+        let access = MusicFileStore.isLinked(song.fileName) ? MusicFileStore.startOriginalFolderAccess() : nil
+        defer { if let access, access.accessed { access.url.stopAccessingSecurityScopedResource() } }
+        let sidecar = MusicFileStore.sidecarURL(for: song.fileName)
         if let data = try? Data(contentsOf: sidecar), let text = String(data: data, encoding: .utf8) {
             let parsed = parse(text)
             if !parsed.isEmpty { return parsed }
