@@ -52,13 +52,19 @@ enum MusicFileStore {
 
     static func isLinked(_ path: String) -> Bool { path.hasPrefix(linkedPrefix) }
 
-    static func resolve(_ path: String) -> URL {
-        if isLinked(path), let access = startOriginalFolderAccess() {
-            // Keep folder permission active while the caller opens the returned file.
+    static func resolve(_ path: String, in folder: URL? = nil) -> URL {
+        if isLinked(path) {
+            let root = folder ?? originalFolderURL()
             let relative = String(path.dropFirst(linkedPrefix.count))
-            return access.url.appendingPathComponent(relative)
+            if let root { return root.appendingPathComponent(relative) }
         }
         return musicDirectory.appendingPathComponent(path)
+    }
+
+    static func originalFolderURL() -> URL? {
+        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return nil }
+        var stale = false
+        return try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale)
     }
 
     static func sidecarURL(for path: String) -> URL {
