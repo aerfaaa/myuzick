@@ -201,7 +201,7 @@ struct NowPlayingView: View {
             }
             .navigationTitle("Playing Next")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { showingQueue = false } } }
+            .toolbar {\n                ToolbarItem(placement: .topBarLeading) { EditButton() }\n                ToolbarItem(placement: .topBarTrailing) { Button("Done") { showingQueue = false } }\n            }
         }
         .preferredColorScheme(.dark)
     }
