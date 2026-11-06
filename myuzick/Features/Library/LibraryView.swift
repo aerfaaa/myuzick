@@ -52,9 +52,11 @@ struct LibraryView: View {
                 .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.audio], allowsMultipleSelection: true, onCompletion: handleImport)
                 .fileImporter(isPresented: $showingFolderPicker, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleFolderImport)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if audioPlayer.currentSong != nil {
-                        MiniPlayer().padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 4).background(.ultraThinMaterial)
-                    }
+                    MiniPlayer()
+                        .padding(.horizontal, 12)
+                        .padding(.top, 8)
+                        .padding(.bottom, 4)
+                        .background(.ultraThinMaterial)
                 }
                 .alert("myuzick", isPresented: Binding(get: { importMessage != nil }, set: { if !$0 { importMessage = nil } })) {
                     Button("OK", role: .cancel) { importMessage = nil }
