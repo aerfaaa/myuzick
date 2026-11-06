@@ -7,6 +7,7 @@ struct NowPlayingView: View {
     @State private var lyricsMessage = "Find synced lyrics"
     @State private var isLoadingLyrics = false
     @State private var animateArtwork = false
+    @State private var showingQueue = false
 
     private var activeLine: Int {
         lyrics.lastIndex(where: { $0.time <= audioPlayer.currentTime }) ?? 0
@@ -49,7 +50,7 @@ struct NowPlayingView: View {
             }
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .task(id: audioPlayer.currentSong?.id) { await loadLyrics() }
+            .task(id: audioPlayer.currentSong?.id) { await loadLyrics() }\n            .sheet(isPresented: $showingQueue) { queueSheet }
             .alert("Playback", isPresented: Binding(get: { audioPlayer.playbackError != nil }, set: { if !$0 { audioPlayer.playbackError = nil } })) {
                 Button("OK", role: .cancel) { audioPlayer.playbackError = nil }
             } message: { Text(audioPlayer.playbackError ?? "") }
@@ -86,9 +87,75 @@ struct NowPlayingView: View {
                 }
                 Button { audioPlayer.skipToNext() } label: { Image(systemName: "forward.end.fill").font(.title2) }
             }
-            .buttonStyle(.plain).padding(.top, 5)
+            .buttonStyle(.plain).padding(.top, 5)\n            queueControls
         }
         .padding(.horizontal, 28)
+    }
+
+    private var queueControls: some View {
+        HStack(spacing: 34) {
+            Button { audioPlayer.setShuffle(!audioPlayer.isShuffling) } label: {
+                Image(systemName: "shuffle")
+                    .font(.title3)
+                    .foregroundStyle(audioPlayer.isShuffling ? .green : .white.opacity(0.7))
+            }
+            Button { audioPlayer.cycleRepeatMode() } label: {
+                Image(systemName: audioPlayer.repeatMode == .one ? "repeat.1" : "repeat")
+                    .font(.title3)
+                    .foregroundStyle(audioPlayer.repeatMode == .off ? .white.opacity(0.7) : .green)
+            }
+            Button { showingQueue = true } label: {
+                Image(systemName: "list.bullet")
+                    .font(.title3)
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 8)
+    }
+
+    private var queueSheet: some View {
+        NavigationStack {
+            List {
+                Section("Now Playing") {
+                    if let song = audioPlayer.currentSong {
+                        HStack(spacing: 12) {
+                            ArtworkView(data: song.artworkData).frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 7))
+                            VStack(alignment: .leading) {
+                                Text(song.displayTitle).font(.headline)
+                                Text(song.artist).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "waveform").foregroundStyle(.tint)
+                        }
+                    }
+                }
+                Section("Up Next · \(audioPlayer.upcomingSongs.count)") {
+                    ForEach(Array(audioPlayer.upcomingSongs.enumerated()), id: \.element.id) { index, song in
+                        HStack(spacing: 12) {
+                            ArtworkView(data: song.artworkData).frame(width: 42, height: 42).clipShape(RoundedRectangle(cornerRadius: 7))
+                            VStack(alignment: .leading) {
+                                Text(song.displayTitle).lineLimit(1)
+                                Text(song.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer()
+                            Text(song.duration.formattedTime).font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture { audioPlayer.play(song) }
+                    }
+                    .onDelete { offsets in
+                        for offset in offsets.sorted(by: >) {
+                            audioPlayer.removeFromQueue(at: offset + (audioPlayer.currentQueue.count - audioPlayer.upcomingSongs.count))
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Playing Next")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { showingQueue = false } } }
+        }
+        .preferredColorScheme(.dark)
     }
 
     private var lyricsPanel: some View {
