@@ -19,6 +19,7 @@ final class AudioPlayer: ObservableObject {
     private let playerNode = AVAudioPlayerNode()
     private let equalizer = AVAudioUnitEQ(numberOfBands: 5)
     private var audioFile: AVAudioFile?
+    private var originalFolderAccess: (url: URL, accessed: Bool)?
     private var queue: [Song] = []
     private var currentIndex = 0
     private var timer: Timer?
@@ -164,7 +165,12 @@ final class AudioPlayer: ObservableObject {
     private func loadCurrentSong() {
         guard queue.indices.contains(currentIndex) else { return }
         let song = queue[currentIndex]
-        let url = MusicFileStore.musicDirectory.appendingPathComponent(song.fileName)
+        if let previous = originalFolderAccess, previous.accessed { previous.url.stopAccessingSecurityScopedResource() }
+        originalFolderAccess = nil
+        if MusicFileStore.isLinked(song.fileName) {
+            originalFolderAccess = MusicFileStore.startOriginalFolderAccess()
+        }
+        let url = MusicFileStore.resolve(song.fileName, in: originalFolderAccess?.url)
         do {
             let file = try AVAudioFile(forReading: url)
             playerNode.stop()
