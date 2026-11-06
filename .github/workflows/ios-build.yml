@@ -43,16 +43,48 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
-      - name: Package app
+      - name: Package Simulator app
         run: |
           APP_PATH="build/DerivedData/Build/Products/Debug-iphonesimulator/myuzick.app"
           test -d "$APP_PATH"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" myuzick-simulator-app.zip
 
-      - name: Upload build artifact
+      - name: Build unsigned iPhone archive
+        run: |
+          xcodebuild \
+            -project myuzick.xcodeproj \
+            -scheme myuzick \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/myuzick.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            archive
+
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH="build/myuzick.xcarchive/Products/Applications/myuzick.app"
+          test -d "$APP_PATH"
+          mkdir -p package/Payload
+          cp -R "$APP_PATH" package/Payload/myuzick.app
+          cd package
+          zip -qry ../myuzick-unsigned.ipa Payload
+          cd ..
+          test -s myuzick-unsigned.ipa
+
+      - name: Upload Simulator build
         uses: actions/upload-artifact@v4
         with:
           name: myuzick-ios-simulator
           path: myuzick-simulator-app.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload unsigned iPhone IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: myuzick-unsigned-ipa
+          path: myuzick-unsigned.ipa
           if-no-files-found: error
           retention-days: 14
