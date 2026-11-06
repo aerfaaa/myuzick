@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct myuzickApp: App {
+struct myuzickApp: App {\n    init() { AppFont.registerSavedFont() }
     @StateObject private var audioPlayer = AudioPlayer()
 
     var body: some Scene {
