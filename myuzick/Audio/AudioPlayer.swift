@@ -25,6 +25,7 @@ final class AudioPlayer: ObservableObject {
     private var lastHapticTime: TimeInterval = 0
     private var scrobbledSongID: UUID?
     private var trackStartTimestamp = Date().timeIntervalSince1970
+    private var playbackStartOffset: Double = 0
     private let frequencies: [Float] = [60, 230, 910, 3600, 14000]
 
     var eqGains: [Float] {
@@ -186,6 +187,7 @@ final class AudioPlayer: ObservableObject {
 
     private func scheduleAudio(from seconds: Double) {
         guard let file = audioFile else { return }
+        playbackStartOffset = max(0, seconds)
         let sampleRate = file.processingFormat.sampleRate
         let startFrame = AVAudioFramePosition(max(0, seconds) * sampleRate)
         let remaining = AVAudioFrameCount(max(0, file.length - startFrame))
@@ -221,7 +223,8 @@ final class AudioPlayer: ObservableObject {
                 guard let self, self.isPlaying, let nodeTime = self.playerNode.lastRenderTime,
                       let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime) else { return }
                 let elapsed = Double(playerTime.sampleTime) / playerTime.sampleRate
-                self.currentTime = min(self.duration, max(0, elapsed))
+                self.currentTime = min(self.duration, max(0, self.playbackStartOffset + elapsed))
+                self.updateNowPlaying()
                 self.submitScrobbleIfDue()
             }
         }
