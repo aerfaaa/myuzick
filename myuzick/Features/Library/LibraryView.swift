@@ -91,7 +91,7 @@ struct LibraryView: View {
                     Text(searchText.isEmpty ? "ALL SONGS" : "SEARCH RESULTS")
                     Spacer()
                     Text("\(filteredSongs.count) TRACKS").foregroundStyle(.tertiary)
-                }.font(.caption.weight(.semibold)).tracking(1)
+                }.font(AppFont.font(size: 11, weight: .semibold)).tracking(1)
             }
         }.listStyle(.plain).overlay { if filteredSongs.isEmpty { ContentUnavailableView.search(text: searchText) } }
     }
