@@ -1,5 +1,5 @@
 import SwiftData
-import SwiftUI
+import SwiftUI\nimport UniformTypeIdentifiers
 
 struct MetadataEditorView: View {
     @Environment(\.dismiss) private var dismiss
@@ -8,7 +8,7 @@ struct MetadataEditorView: View {
 
     @State private var title: String
     @State private var artist: String
-    @State private var album: String
+    @State private var album: String\n    @State private var artworkData: Data?\n    @State private var showingArtworkPicker = false
     @State private var isSaving = false
     @State private var errorMessage: String?
 
@@ -16,13 +16,13 @@ struct MetadataEditorView: View {
         self.song = song
         _title = State(initialValue: song.title)
         _artist = State(initialValue: song.artist)
-        _album = State(initialValue: song.album)
+        _album = State(initialValue: song.album)\n        _artworkData = State(initialValue: song.artworkData)
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Track information") {
+                Section("Album artwork") {\n                    HStack(spacing: 14) {\n                        ArtworkView(data: artworkData).frame(width: 76, height: 76).clipShape(RoundedRectangle(cornerRadius: 10))\n                        Button("Choose artwork") { showingArtworkPicker = true }\n                    }\n                }\n                Section("Track information") {
                     TextField("Title", text: $title)
                     TextField("Artist", text: $artist)
                     TextField("Album", text: $album)
@@ -33,7 +33,7 @@ struct MetadataEditorView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .navigationTitle("Edit Metadata")
+            .navigationTitle("Edit Metadata")\n            .fileImporter(isPresented: $showingArtworkPicker, allowedContentTypes: [.image], allowsMultipleSelection: false) { result in\n                if case .success(let urls) = result, let url = urls.first {\n                    let access = url.startAccessingSecurityScopedResource()\n                    defer { if access { url.stopAccessingSecurityScopedResource() } }\n                    artworkData = try? Data(contentsOf: url)\n                }\n            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -77,7 +77,7 @@ struct MetadataEditorView: View {
                 )
                 song.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
                 song.artist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
-                song.album = album.trimmingCharacters(in: .whitespacesAndNewlines)
+                song.album = album.trimmingCharacters(in: .whitespacesAndNewlines)\n                song.artworkData = artworkData
                 try modelContext.save()
                 dismiss()
             } catch {
