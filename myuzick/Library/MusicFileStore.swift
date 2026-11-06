@@ -7,7 +7,7 @@ enum MusicFileStore {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
     }()
-    private static let bookmarkKey = "myuzick.originalMusicFolderBookmark"
+    private static let bookmarkKey = "myuzick.originalMusicFolderBookmark"\n    static let coverDirectory: URL = {\n        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("AnimatedCovers", isDirectory: true)\n        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)\n        return directory\n    }()
     static let linkedPrefix = "linked://"\n    static let supportedAudioExtensions: Set<String> = ["mp3", "m4a", "aac", "wav", "aif", "aiff", "caf", "flac", "alac"]
 
     static func importFile(from sourceURL: URL) throws -> URL {
@@ -17,6 +17,19 @@ enum MusicFileStore {
         let destination = uniqueDestination(for: sourceURL.lastPathComponent)
         try FileManager.default.copyItem(at: sourceURL, to: destination)
         return destination
+    }
+
+    static func storeAnimatedCover(from source: URL) throws -> String {
+        let access = source.startAccessingSecurityScopedResource()
+        defer { if access { source.stopAccessingSecurityScopedResource() } }
+        let ext = source.pathExtension.isEmpty ? "mov" : source.pathExtension
+        let name = UUID().uuidString + "." + ext
+        try FileManager.default.copyItem(at: source, to: coverDirectory.appendingPathComponent(name))
+        return name
+    }
+
+    static func animatedCoverURL(for filename: String) -> URL {
+        coverDirectory.appendingPathComponent(filename)
     }
 
     static func importFolder(from folderURL: URL) throws -> [URL] {
