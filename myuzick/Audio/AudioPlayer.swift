@@ -214,7 +214,7 @@ final class AudioPlayer: ObservableObject {
         engine.attach(equalizer)
         engine.connect(playerNode, to: equalizer, format: nil)
         engine.connect(equalizer, to: engine.mainMixerNode, format: nil)
-        playerNode.installTap(onBus: 0, bufferSize: 2048, format: nil) { [weak self] buffer, _ in
+        playerNode.installTap(onBus: 0, bufferSize: 8192, format: nil) { [weak self] buffer, _ in
             guard let channel = buffer.floatChannelData?[0] else { return }
             let count = Int(buffer.frameLength)
             guard count > 0 else { return }
