@@ -231,7 +231,7 @@ struct NowPlayingView: View {
                             }
                         }
                     }
-                    .font(index == activeLine ? .title3.weight(.bold) : .body)
+                    .font(AppFont.font(size: index == activeLine ? 20 : 17, weight: index == activeLine ? .bold : .regular))
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 4)
