@@ -378,7 +378,7 @@ final class AudioPlayer: ObservableObject {
                     sessionKey: session
                 )
             } catch {
-                playbackError = "Last.fm scrobble failed: \\(error.localizedDescription)"
+                playbackError = "Last.fm scrobble failed: \(error.localizedDescription)"
             }
         }
     }
@@ -410,7 +410,7 @@ final class AudioPlayer: ObservableObject {
         } catch { }
     }
 }
-\n\nenum RepeatMode: String, CaseIterable {\n    case off, all, one\n    var next: RepeatMode {\n        switch self { case .off: return .all; case .all: return .one; case .one: return .off }\n    }\n}\n
+
 
 enum RepeatMode: String, CaseIterable {
     case off, all, one
