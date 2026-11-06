@@ -7,10 +7,12 @@ enum MusicFileStore {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
     }()
+    private static let bookmarkKey = "myuzick.originalMusicFolderBookmark"
+    static let linkedPrefix = "linked://"
 
     static func importFile(from sourceURL: URL) throws -> URL {
-        let didAccess = sourceURL.startAccessingSecurityScopedResource()
-        defer { if didAccess { sourceURL.stopAccessingSecurityScopedResource() } }
+        let access = sourceURL.startAccessingSecurityScopedResource()
+        defer { if access { sourceURL.stopAccessingSecurityScopedResource() } }
         guard sourceURL.pathExtension.lowercased() == "mp3" else { throw ImportError.unsupportedFormat }
         let destination = uniqueDestination(for: sourceURL.lastPathComponent)
         try FileManager.default.copyItem(at: sourceURL, to: destination)
@@ -18,31 +20,57 @@ enum MusicFileStore {
     }
 
     static func importFolder(from folderURL: URL) throws -> [URL] {
-        let didAccess = folderURL.startAccessingSecurityScopedResource()
-        defer { if didAccess { folderURL.stopAccessingSecurityScopedResource() } }
-        guard let enumerator = FileManager.default.enumerator(
-            at: folderURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else { throw ImportError.unreadableFolder }
-
-        var imported: [URL] = []
-        for case let sourceURL as URL in enumerator where sourceURL.pathExtension.lowercased() == "mp3" {
-            do {
-                let destination = uniqueDestination(for: sourceURL.lastPathComponent)
-                try FileManager.default.copyItem(at: sourceURL, to: destination)
-                imported.append(destination)
-            } catch {
-                continue
-            }
-        }
-        return imported
+        let bookmark = try folderURL.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+        UserDefaults.standard.set(bookmark, forKey: bookmarkKey)
+        return try scanOriginalFolder(at: folderURL)
     }
 
-    private static func uniqueDestination(for fileName: String) -> URL {
-        let base = URL(fileURLWithPath: fileName).deletingPathExtension().lastPathComponent
-        let ext = URL(fileURLWithPath: fileName).pathExtension
-        var candidate = musicDirectory.appendingPathComponent(fileName)
+    static func startOriginalFolderAccess() -> (url: URL, accessed: Bool)? {
+        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return nil }
+        var stale = false
+        guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
+        if stale, let updated = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) {
+            UserDefaults.standard.set(updated, forKey: bookmarkKey)
+        }
+        return (url, url.startAccessingSecurityScopedResource())
+    }
+
+    static func scanOriginalFolder(at folder: URL) throws -> [URL] {
+        guard let enumerator = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else {
+            throw ImportError.unreadableFolder
+        }
+        var result: [URL] = []
+        for case let url as URL in enumerator where url.pathExtension.lowercased() == "mp3" {
+            if (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true { result.append(url) }
+        }
+        return result
+    }
+
+    static func storedPath(for file: URL, in folder: URL) -> String {
+        linkedPrefix + String(file.standardizedFileURL.path.dropFirst(folder.standardizedFileURL.path.count + 1))
+    }
+
+    static func isLinked(_ path: String) -> Bool { path.hasPrefix(linkedPrefix) }
+
+    static func resolve(_ path: String) -> URL {
+        if isLinked(path), let access = startOriginalFolderAccess() {
+            // Keep folder permission active while the caller opens the returned file.
+            let relative = String(path.dropFirst(linkedPrefix.count))
+            return access.url.appendingPathComponent(relative)
+        }
+        return musicDirectory.appendingPathComponent(path)
+    }
+
+    static func sidecarURL(for path: String) -> URL {
+        resolve(path).deletingPathExtension().appendingPathExtension("lrc")
+    }
+
+    static func clearFolderBookmark() { UserDefaults.standard.removeObject(forKey: bookmarkKey) }
+
+    private static func uniqueDestination(for name: String) -> URL {
+        let base = URL(fileURLWithPath: name).deletingPathExtension().lastPathComponent
+        let ext = URL(fileURLWithPath: name).pathExtension
+        var candidate = musicDirectory.appendingPathComponent(name)
         var suffix = 1
         while FileManager.default.fileExists(atPath: candidate.path) {
             candidate = musicDirectory.appendingPathComponent("\(base)-\(suffix).\(ext)")
@@ -52,8 +80,7 @@ enum MusicFileStore {
     }
 
     enum ImportError: LocalizedError {
-        case unsupportedFormat
-        case unreadableFolder
+        case unsupportedFormat, unreadableFolder
         var errorDescription: String? {
             switch self {
             case .unsupportedFormat: return "This version supports MP3 files only."
