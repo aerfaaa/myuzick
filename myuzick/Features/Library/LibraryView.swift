@@ -44,7 +44,7 @@ struct LibraryView: View {
                 .sheet(isPresented: $showingSettings) {
                     SettingsView().environmentObject(audioPlayer).presentationDetents([.large]).presentationDragIndicator(.visible)
                 }
-                .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.mp3], allowsMultipleSelection: true, onCompletion: handleImport)
+                .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.audio], allowsMultipleSelection: true, onCompletion: handleImport)
                 .fileImporter(isPresented: $showingFolderPicker, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleFolderImport)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     if audioPlayer.currentSong != nil {
@@ -63,7 +63,7 @@ struct LibraryView: View {
         ContentUnavailableView {
             Label("Your music belongs here", systemImage: "music.note")
         } description: {
-            Text("Link a folder in Files to play original MP3s without copying them into myuzick.")
+            Text("Link a folder in Files to play supported audio files without copying them into myuzick.")
         } actions: {
             Button { showingFolderPicker = true } label: { Label("Link music folder", systemImage: "folder.badge.plus") }.buttonStyle(.borderedProminent)
         }
@@ -104,7 +104,7 @@ struct LibraryView: View {
                 do {
                     let files = try MusicFileStore.importFolder(from: folder)
                     let count = await registerLinkedFiles(files, in: folder)
-                    importMessage = "Linked \(count) original MP3 file(s). No audio files were copied."
+                    importMessage = "Linked \(count) original audio file(s). No audio files were copied."
                 } catch { importMessage = error.localizedDescription }
             }
         }
@@ -152,7 +152,7 @@ struct LibraryView: View {
                 }
                 _ = await registerLinkedFiles(files, in: access.url)
                 try? modelContext.save()
-                if !silent { importMessage = "Folder refreshed. The library now matches the MP3s in the original folder." }
+                if !silent { importMessage = "Folder refreshed. The library now matches supported audio files in the original folder." }
             } catch { if !silent { importMessage = error.localizedDescription } }
         }
     }
