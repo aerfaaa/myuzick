@@ -26,6 +26,7 @@ final class AudioPlayer: ObservableObject {
     private var scrobbledSongID: UUID?
     private var trackStartTimestamp = Date().timeIntervalSince1970
     private var playbackStartOffset: Double = 0
+    private var isAtEnd = false
     private let frequencies: [Float] = [60, 230, 910, 3600, 14000]
 
     var eqGains: [Float] {
@@ -73,11 +74,12 @@ final class AudioPlayer: ObservableObject {
             stopTimer()
             updateNowPlaying()
         } else if audioFile != nil {
-            if playerNode.isPlaying {
-                playerNode.play()
-            } else {
-                scheduleAudio(from: currentTime)
+            if isAtEnd {
+                playerNode.stop()
+                scheduleAudio(from: 0)
+                currentTime = 0
             }
+            playerNode.play()
             isPlaying = true
             startTimer()
             updateNowPlaying()
@@ -169,6 +171,7 @@ final class AudioPlayer: ObservableObject {
             audioFile = file
             currentSong = song
             currentTime = 0
+            isAtEnd = false
             trackStartTimestamp = Date().timeIntervalSince1970
             scrobbledSongID = nil
             duration = Double(file.length) / file.processingFormat.sampleRate
@@ -188,6 +191,7 @@ final class AudioPlayer: ObservableObject {
     private func scheduleAudio(from seconds: Double) {
         guard let file = audioFile else { return }
         playbackStartOffset = max(0, seconds)
+        isAtEnd = false
         let sampleRate = file.processingFormat.sampleRate
         let startFrame = AVAudioFramePosition(max(0, seconds) * sampleRate)
         let remaining = AVAudioFrameCount(max(0, file.length - startFrame))
@@ -210,6 +214,7 @@ final class AudioPlayer: ObservableObject {
             loadCurrentSong()
         } else {
             isPlaying = false
+            isAtEnd = true
             currentTime = duration
             stopTimer()
             updateNowPlaying()
