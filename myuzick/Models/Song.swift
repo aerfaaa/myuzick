@@ -10,7 +10,6 @@ final class Song {
     var duration: Double
     var fileName: String
     var artworkData: Data?
-    var animatedCoverFileName: String?
     var dateAdded: Date
 
     init(
