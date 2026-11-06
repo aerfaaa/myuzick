@@ -4,7 +4,8 @@ import UniformTypeIdentifiers
 
 struct LibraryView: View {
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var audioPlayer: AudioPlayer
+    @Environment(\.audioPlayerReference) private var audioPlayerReference
+    private var audioPlayer: AudioPlayer { audioPlayerReference! }
     @Query(sort: \Song.dateAdded, order: .reverse) private var songs: [Song]
     @State private var showingImporter = false
     @State private var showingSettings = false
