@@ -71,7 +71,7 @@ struct SettingsView: View {
             .alert("Last.fm setup", isPresented: $showLastFMDetails) {
                 Button("OK", role: .cancel) { }
             } message: {
-                Text("Create an API application in your Last.fm account to get an API key and shared secret. A session key is also required for scrobbling. This build provides the credential fields; account authorization and live scrobble submission are not yet connected.")
+                Text("Create an API application in your Last.fm account to get an API key and shared secret. A valid session key is also required. Once all three credentials are entered, myuzick submits a scrobble after at least half the track has played (up to the four-minute threshold). You must obtain the session key through Last.fm account authorization.")
             }
         }
     }
