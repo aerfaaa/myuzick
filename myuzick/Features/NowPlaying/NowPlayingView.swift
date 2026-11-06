@@ -1,4 +1,5 @@
-import SwiftUI\nimport UniformTypeIdentifiers
+import SwiftUI
+import UniformTypeIdentifiers
 
 struct NowPlayingView: View {
     @EnvironmentObject private var audioPlayer: AudioPlayer
@@ -7,7 +8,10 @@ struct NowPlayingView: View {
     @State private var lyricsMessage = "Find synced lyrics"
     @State private var isLoadingLyrics = false
     @State private var animateArtwork = false
-    @State private var showingQueue = false\n    @State private var showingCoverPicker = false\n    @State private var coverAlert = false\n    @State private var coverMessage = ""
+    @State private var showingQueue = false
+    @State private var showingCoverPicker = false
+    @State private var coverAlert = false
+    @State private var coverMessage = ""
 
     private var activeLine: Int {
         lyrics.lastIndex(where: { $0.time <= audioPlayer.currentTime }) ?? 0
@@ -58,7 +62,22 @@ struct NowPlayingView: View {
             }
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .task(id: audioPlayer.currentSong?.id) { await loadLyrics() }\n            .sheet(isPresented: $showingQueue) { queueSheet }\n            .fileImporter(isPresented: $showingCoverPicker, allowedContentTypes: [.movie, .mpeg4Movie, .quickTimeMovie], allowsMultipleSelection: false) { result in\n                switch result {\n                case .success(let urls):\n                    if let url = urls.first {\n                        do {\n                            let filename = try MusicFileStore.storeAnimatedCover(from: url)\n                            if let oldName = audioPlayer.currentSong?.animatedCoverFileName { try? FileManager.default.removeItem(at: MusicFileStore.animatedCoverURL(for: oldName)) }\n                            audioPlayer.currentSong?.animatedCoverFileName = filename\n                        } catch { coverMessage = error.localizedDescription; coverAlert = true }\n                    }\n                case .failure(let error): coverMessage = error.localizedDescription; coverAlert = true\n                }\n            }\n            .alert("Animated Cover", isPresented: $coverAlert) { Button("OK", role: .cancel) { } } message: { Text(coverMessage) }
+            .task(id: audioPlayer.currentSong?.id) { await loadLyrics() }
+            .sheet(isPresented: $showingQueue) { queueSheet }
+            .fileImporter(isPresented: $showingCoverPicker, allowedContentTypes: [.movie, .mpeg4Movie, .quickTimeMovie], allowsMultipleSelection: false) { result in
+                switch result {
+                case .success(let urls):
+                    if let url = urls.first {
+                        do {
+                            let filename = try MusicFileStore.storeAnimatedCover(from: url)
+                            if let oldName = audioPlayer.currentSong?.animatedCoverFileName { try? FileManager.default.removeItem(at: MusicFileStore.animatedCoverURL(for: oldName)) }
+                            audioPlayer.currentSong?.animatedCoverFileName = filename
+                        } catch { coverMessage = error.localizedDescription; coverAlert = true }
+                    }
+                case .failure(let error): coverMessage = error.localizedDescription; coverAlert = true
+                }
+            }
+            .alert("Animated Cover", isPresented: $coverAlert) { Button("OK", role: .cancel) { } } message: { Text(coverMessage) }
             .alert("Playback", isPresented: Binding(get: { audioPlayer.playbackError != nil }, set: { if !$0 { audioPlayer.playbackError = nil } })) {
                 Button("OK", role: .cancel) { audioPlayer.playbackError = nil }
             } message: { Text(audioPlayer.playbackError ?? "") }
@@ -101,7 +120,8 @@ struct NowPlayingView: View {
                 }
                 Button { audioPlayer.skipToNext() } label: { Image(systemName: "forward.end.fill").font(.title2) }
             }
-            .buttonStyle(.plain).padding(.top, 5)\n            queueControls
+            .buttonStyle(.plain).padding(.top, 5)
+            queueControls
         }
         .padding(.horizontal, 28)
     }
