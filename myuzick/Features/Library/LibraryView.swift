@@ -131,28 +131,11 @@ struct LibraryView: View {
         Task { @MainActor in
             defer { isImporting = false }
 
-            // File copying can take seconds for large selections; keep it off the UI thread.
-            let copies = await withTaskGroup(of: URL?.self, returning: [URL].self) { group in
-                var iterator = urls.makeIterator()
-                for _ in 0..<min(3, urls.count) {
-                    if let url = iterator.next() {
-                        group.addTask(priority: .utility) {
-                            try? MusicFileStore.importFile(from: url)
-                        }
-                    }
-                }
-
-                var completed: [URL] = []
-                while let copy = await group.next() {
-                    if let copy { completed.append(copy) }
-                    if let next = iterator.next() {
-                        group.addTask(priority: .utility) {
-                            try? MusicFileStore.importFile(from: next)
-                        }
-                    }
-                }
-                return completed
-            }
+            // Copy sequentially on a background task to avoid blocking the UI
+            // and prevent filename collisions when several files share a name.
+            let copies = await Task.detached(priority: .utility) {
+                urls.compactMap { try? MusicFileStore.importFile(from: $0) }
+            }.value
 
             // Read tags concurrently with a small cap, then insert/save once.
             let metadataItems = await MetadataReader.readMany(from: copies, maxConcurrentReads: 4)
