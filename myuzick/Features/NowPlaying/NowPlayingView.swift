@@ -101,13 +101,21 @@ struct NowPlayingView: View {
                 Text(lyricsMessage).font(.subheadline).foregroundStyle(.white.opacity(0.65)).frame(maxWidth: .infinity, minHeight: 70)
             } else {
                 ForEach(Array(lyrics.enumerated()), id: \.element.id) { index, line in
-                    Text(line.text)
-                        .font(index == activeLine ? .title3.weight(.bold) : .body)
-                        .foregroundStyle(index == activeLine ? .white : .white.opacity(0.35))
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
-                        .onTapGesture { audioPlayer.seek(to: line.time) }
+                    Group {
+                        if line.words.isEmpty {
+                            Text(line.text)
+                                .foregroundStyle(index == activeLine ? .white : .white.opacity(0.35))
+                        } else {
+                            line.words.reduce(Text("")) { partial, word in
+                                partial + Text(word.text).foregroundColor(audioPlayer.currentTime >= word.time ? .white : .white.opacity(0.38))
+                            }
+                        }
+                    }
+                    .font(index == activeLine ? .title3.weight(.bold) : .body)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+                    .onTapGesture { audioPlayer.seek(to: line.time) }
                 }
             }
         }
