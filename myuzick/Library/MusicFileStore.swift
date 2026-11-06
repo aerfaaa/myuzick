@@ -7,8 +7,14 @@ enum MusicFileStore {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
     }()
-    private static let bookmarkKey = "myuzick.originalMusicFolderBookmark"\n    static let coverDirectory: URL = {\n        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("AnimatedCovers", isDirectory: true)\n        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)\n        return directory\n    }()
-    static let linkedPrefix = "linked://"\n    static let supportedAudioExtensions: Set<String> = ["mp3", "m4a", "aac", "wav", "aif", "aiff", "caf", "flac", "alac"]
+    private static let bookmarkKey = "myuzick.originalMusicFolderBookmark"
+    static let coverDirectory: URL = {
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("AnimatedCovers", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }()
+    static let linkedPrefix = "linked://"
+    static let supportedAudioExtensions: Set<String> = ["mp3", "m4a", "aac", "wav", "aif", "aiff", "caf", "flac", "alac"]
 
     static func importFile(from sourceURL: URL) throws -> URL {
         let access = sourceURL.startAccessingSecurityScopedResource()
