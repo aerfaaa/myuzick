@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 struct LibraryView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var audioPlayer: AudioPlayer
-    @Query(sort: \Song.dateAdded, order: .reverse) private var songs: [Song]
+    @Query(sort: \\Song.dateAdded, order: .reverse) private var songs: [Song]
     @State private var showingImporter = false
     @State private var showingSettings = false
     @State private var showingFolderPicker = false
@@ -20,49 +20,42 @@ struct LibraryView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if songs.isEmpty { emptyLibrary } else { songList }
-            }
-            .background(Color(uiColor: .systemBackground))
-            .navigationTitle("myuzick")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { showingSettings = true } label: {
-                        Image(systemName: "slider.horizontal.3")
+            Group { if songs.isEmpty { emptyLibrary } else { songList } }
+                .background(Color(uiColor: .systemBackground))
+                .navigationTitle("myuzick")
+                .navigationBarTitleDisplayMode(.large)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { showingSettings = true } label: { Image(systemName: "slider.horizontal.3") }
                     }
-                    .accessibilityLabel("Settings")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button { showingImporter = true } label: { Label("Choose music files", systemImage: "music.note") }
-                        Button { showingFolderPicker = true } label: { Label("Import a folder", systemImage: "folder") }
-                    } label: {
-                        Image(systemName: "plus").font(.headline)
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button { showingImporter = true } label: { Label("Import files (copy)", systemImage: "music.note") }
+                            Button { showingFolderPicker = true } label: { Label("Link original folder", systemImage: "folder") }
+                            if songs.contains(where: { MusicFileStore.isLinked($0.fileName) }) {
+                                Button { refreshLinkedFolder() } label: { Label("Refresh linked folder", systemImage: "arrow.clockwise") }
+                                Button(role: .destructive) { unlinkFolder() } label: { Label("Unlink folder", systemImage: "folder.badge.minus") }
+                            }
+                        } label: { Image(systemName: "plus").font(.headline) }
+                        .disabled(isImporting)
                     }
-                    .disabled(isImporting)
                 }
-            }
-            .searchable(text: $searchText, prompt: "Search your music")
-            .sheet(isPresented: $showingSettings) {
-                SettingsView()
-                    .environmentObject(audioPlayer)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-            }
-            .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.mp3], allowsMultipleSelection: true, onCompletion: handleImport)
-            .fileImporter(isPresented: $showingFolderPicker, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleFolderImport)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if audioPlayer.currentSong != nil {
-                    MiniPlayer().padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 4).background(.ultraThinMaterial)
+                .searchable(text: $searchText, prompt: "Search your music")
+                .sheet(isPresented: $showingSettings) {
+                    SettingsView().environmentObject(audioPlayer).presentationDetents([.large]).presentationDragIndicator(.visible)
                 }
-            }
-            .alert("myuzick", isPresented: Binding(get: { importMessage != nil }, set: { if !$0 { importMessage = nil } })) {
-                Button("OK", role: .cancel) { importMessage = nil }
-            } message: { Text(importMessage ?? "") }
-            .overlay {
-                if isImporting { ProgressView("Importing music…").padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) }
-            }
+                .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.mp3], allowsMultipleSelection: true, onCompletion: handleImport)
+                .fileImporter(isPresented: $showingFolderPicker, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleFolderImport)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if audioPlayer.currentSong != nil {
+                        MiniPlayer().padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 4).background(.ultraThinMaterial)
+                    }
+                }
+                .alert("myuzick", isPresented: Binding(get: { importMessage != nil }, set: { if !$0 { importMessage = nil } })) {
+                    Button("OK", role: .cancel) { importMessage = nil }
+                } message: { Text(importMessage ?? "") }
+                .overlay { if isImporting { ProgressView("Scanning music…").padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) } }
+                .task { refreshLinkedFolder(silent: true) }
         }
     }
 
@@ -70,10 +63,9 @@ struct LibraryView: View {
         ContentUnavailableView {
             Label("Your music belongs here", systemImage: "music.note")
         } description: {
-            Text("Import MP3 files or choose a folder in Files to add your music.")
+            Text("Link a folder in Files to play original MP3s without copying them into myuzick.")
         } actions: {
-            Button { showingFolderPicker = true } label: { Label("Choose music folder", systemImage: "folder.badge.plus") }
-                .buttonStyle(.borderedProminent)
+            Button { showingFolderPicker = true } label: { Label("Link music folder", systemImage: "folder.badge.plus") }.buttonStyle(.borderedProminent)
         }
     }
 
@@ -81,27 +73,22 @@ struct LibraryView: View {
         List {
             Section {
                 ForEach(filteredSongs) { song in
-                    SongRow(song: song) { audioPlayer.play(song, from: filteredSongs) }
-                        .listRowBackground(Color.clear)
-                }
-                .onDelete(perform: deleteSongs)
+                    SongRow(song: song) { audioPlayer.play(song, from: filteredSongs) }.listRowBackground(Color.clear)
+                }.onDelete(perform: deleteSongs)
             } header: {
                 HStack {
                     Text(searchText.isEmpty ? "ALL SONGS" : "SEARCH RESULTS")
                     Spacer()
                     Text("\(filteredSongs.count) TRACKS").foregroundStyle(.tertiary)
-                }
-                .font(.caption.weight(.semibold)).tracking(1)
+                }.font(.caption.weight(.semibold)).tracking(1)
             }
-        }
-        .listStyle(.plain)
-        .overlay { if filteredSongs.isEmpty { ContentUnavailableView.search(text: searchText) } }
+        }.listStyle(.plain).overlay { if filteredSongs.isEmpty { ContentUnavailableView.search(text: searchText) } }
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {
         switch result {
         case .failure(let error): importMessage = error.localizedDescription
-        case .success(let urls): importURLs(urls)
+        case .success(let urls): importCopiedURLs(urls)
         }
     }
 
@@ -112,48 +99,81 @@ struct LibraryView: View {
             guard let folder = urls.first else { return }
             isImporting = true
             Task { @MainActor in
+                let didAccess = folder.startAccessingSecurityScopedResource()
+                defer { if didAccess { folder.stopAccessingSecurityScopedResource() }; isImporting = false }
                 do {
-                    let imported = try MusicFileStore.importFolder(from: folder)
-                    await registerImportedFiles(imported)
-                    importMessage = "Added \(imported.count) MP3 file(s) from that folder."
+                    let files = try MusicFileStore.importFolder(from: folder)
+                    let count = await registerLinkedFiles(files, in: folder)
+                    importMessage = "Linked \(count) original MP3 file(s). No audio files were copied."
                 } catch { importMessage = error.localizedDescription }
-                isImporting = false
             }
         }
     }
 
-    private func importURLs(_ urls: [URL]) {
+    private func importCopiedURLs(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
         isImporting = true
         Task { @MainActor in
-            var imported: [URL] = []
-            for url in urls {
-                do { imported.append(try MusicFileStore.importFile(from: url)) } catch { }
+            var copies: [URL] = []
+            for url in urls { if let copy = try? MusicFileStore.importFile(from: url) { copies.append(copy) } }
+            for url in copies {
+                guard let metadata = try? await MetadataReader.read(from: url) else { continue }
+                modelContext.insert(Song(title: metadata.title, artist: metadata.artist, album: metadata.album, duration: metadata.duration, fileName: url.lastPathComponent, artworkData: metadata.artworkData))
             }
-            await registerImportedFiles(imported)
+            try? modelContext.save()
             isImporting = false
-            importMessage = "Added \(imported.count) MP3 file(s)."
+            importMessage = "Imported \(copies.count) copied MP3 file(s)."
         }
     }
 
-    private func registerImportedFiles(_ urls: [URL]) async {
-        var count = 0
-        for url in urls {
-            do {
-                let metadata = try await MetadataReader.read(from: url)
-                modelContext.insert(Song(title: metadata.title, artist: metadata.artist, album: metadata.album, duration: metadata.duration, fileName: url.lastPathComponent, artworkData: metadata.artworkData))
-                count += 1
-            } catch { try? FileManager.default.removeItem(at: url) }
+    private func registerLinkedFiles(_ files: [URL], in folder: URL) async -> Int {
+        let existing = Set(songs.filter { MusicFileStore.isLinked($0.fileName) }.map(\\.fileName))
+        var added = 0
+        for file in files {
+            let storedPath = MusicFileStore.storedPath(for: file, in: folder)
+            guard !existing.contains(storedPath), let metadata = try? await MetadataReader.read(from: file) else { continue }
+            modelContext.insert(Song(title: metadata.title, artist: metadata.artist, album: metadata.album, duration: metadata.duration, fileName: storedPath, artworkData: metadata.artworkData))
+            added += 1
         }
         try? modelContext.save()
-        if count == 0 && !urls.isEmpty { importMessage = "Couldn't read the selected audio files." }
+        return added
+    }
+
+    private func refreshLinkedFolder(silent: Bool = false) {
+        guard let access = MusicFileStore.startOriginalFolderAccess() else { return }
+        Task { @MainActor in
+            defer { if access.accessed { access.url.stopAccessingSecurityScopedResource() } }
+            do {
+                let files = try MusicFileStore.scanOriginalFolder(at: access.url)
+                let available = Set(files.map { MusicFileStore.storedPath(for: $0, in: access.url) })
+                for song in songs where MusicFileStore.isLinked(song.fileName) && !available.contains(song.fileName) {
+                    if audioPlayer.currentSong?.id == song.id { audioPlayer.stop() }
+                    modelContext.delete(song)
+                }
+                _ = await registerLinkedFiles(files, in: access.url)
+                try? modelContext.save()
+                if !silent { importMessage = "Folder refreshed. The library now matches the MP3s in the original folder." }
+            } catch { if !silent { importMessage = error.localizedDescription } }
+        }
+    }
+
+    private func unlinkFolder() {
+        MusicFileStore.clearFolderBookmark()
+        for song in songs where MusicFileStore.isLinked(song.fileName) {
+            if audioPlayer.currentSong?.id == song.id { audioPlayer.stop() }
+            modelContext.delete(song)
+        }
+        try? modelContext.save()
+        importMessage = "Folder unlinked. Original files were left untouched."
     }
 
     private func deleteSongs(at offsets: IndexSet) {
         for index in offsets {
             let song = filteredSongs[index]
             if audioPlayer.currentSong?.id == song.id { audioPlayer.stop() }
-            try? FileManager.default.removeItem(at: MusicFileStore.musicDirectory.appendingPathComponent(song.fileName))
+            if !MusicFileStore.isLinked(song.fileName) {
+                try? FileManager.default.removeItem(at: MusicFileStore.musicDirectory.appendingPathComponent(song.fileName))
+            }
             modelContext.delete(song)
         }
         try? modelContext.save()
