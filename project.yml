@@ -14,7 +14,7 @@ settings:
 packages:
   TagLibSwift:
     url: https://github.com/jeonghi/TagLibSwift.git
-    from: 0.1.0
+    branch: main
 
 targets:
   myuzick:
