@@ -32,7 +32,7 @@ struct NowPlayingView: View {
                             LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom)
                                 .frame(height: 110)
                         }
-                        .aspectRatio(3 / 4, contentMode: .fit)
+                        .aspectRatio(3.0 / 4.0, contentMode: .fit)
                         .frame(maxWidth: 330)
                         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
                         .shadow(color: .black.opacity(0.35), radius: 28, y: 16)
@@ -57,7 +57,13 @@ struct NowPlayingView: View {
                     Text("NOW PLAYING").font(.caption.weight(.bold)).tracking(2)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }.foregroundStyle(.white)
+                    Menu {
+                        Button { showingCoverPicker = true } label: { Label("Upload Animated Cover", systemImage: "video.badge.plus") }
+                        if audioPlayer.currentSong?.animatedCoverFileName != nil {
+                            Button(role: .destructive) { removeAnimatedCover() } label: { Label("Remove Animated Cover", systemImage: "trash") }
+                        }
+                        Button("Done") { dismiss() }
+                    } label: { Image(systemName: "ellipsis.circle").foregroundStyle(.white) }
                 }
             }
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
