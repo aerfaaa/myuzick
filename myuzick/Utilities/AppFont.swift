@@ -8,7 +8,7 @@ enum AppFont {
 
     static func font(size: CGFloat, weight: Font.Weight = .regular) -> Font {
         if let name = UserDefaults.standard.string(forKey: fontNameKey) {
-            return .custom(name, size: size, relativeTo: .body)
+            return .custom(name, size: size, relativeTo: .body).weight(weight)
         }
         return .system(size: size, weight: weight)
     }
