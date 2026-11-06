@@ -50,10 +50,10 @@ struct MiniPlayer: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(.white.opacity(0.08))
+                .strokeBorder(.white.opacity(0.16))
         }
         .sheet(isPresented: $showingNowPlaying) {
             NowPlayingView()
