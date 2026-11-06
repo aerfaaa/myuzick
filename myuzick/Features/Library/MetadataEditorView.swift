@@ -90,7 +90,8 @@ struct MetadataEditorView: View {
                     fileURL: fileURL,
                     title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                     artist: artist.trimmingCharacters(in: .whitespacesAndNewlines),
-                    album: album.trimmingCharacters(in: .whitespacesAndNewlines)
+                    album: album.trimmingCharacters(in: .whitespacesAndNewlines),
+                    artworkData: artworkData
                 )
                 song.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
                 song.artist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
