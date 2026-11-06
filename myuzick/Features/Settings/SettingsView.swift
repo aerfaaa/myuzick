@@ -85,7 +85,7 @@ struct SettingsView: View {
                         Button("Use system font", role: .destructive) { AppFont.remove(); customFontName = "" }
                     }
                     Text("The selected font is registered locally and used as the app default. Some system-provided controls retain their native typeface.")
-                        .font(.caption)
+                        .font(AppFont.font(size: 12))
                         .foregroundStyle(.secondary)
                 }
 
