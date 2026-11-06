@@ -40,11 +40,16 @@ final class AudioPlayer: ObservableObject {
 
     func setEQGain(_ gain: Float, forBand index: Int) {
         guard equalizer.bands.indices.contains(index) else { return }
-        equalizer.bands[index].gain = max(-12, min(12, gain))
+        let safeGain = max(-12, min(12, gain))
+        equalizer.bands[index].gain = safeGain
+        UserDefaults.standard.set(safeGain, forKey: "eqGain_\(index)")
     }
 
     func resetEQ() {
-        equalizer.bands.forEach { $0.gain = 0 }
+        equalizer.bands.enumerated().forEach { index, band in
+            band.gain = 0
+            UserDefaults.standard.set(Float(0), forKey: "eqGain_\(index)")
+        }
     }
 
     func play(_ song: Song, from songs: [Song]? = nil) {
@@ -131,7 +136,7 @@ final class AudioPlayer: ObservableObject {
             band.filterType = .parametric
             band.frequency = frequencies[index]
             band.bandwidth = 1.0
-            band.gain = 0
+            band.gain = UserDefaults.standard.object(forKey: "eqGain_\(index)") as? Float ?? 0
             band.bypass = false
         }
         engine.attach(playerNode)
