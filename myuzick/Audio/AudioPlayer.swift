@@ -3,6 +3,7 @@ import Combine
 import CoreHaptics
 import MediaPlayer
 import Foundation
+import UIKit
 
 @MainActor
 final class AudioPlayer: ObservableObject {
