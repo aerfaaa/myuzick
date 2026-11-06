@@ -6,7 +6,8 @@ enum MetadataWriter {
         fileURL: URL,
         title: String,
         artist: String,
-        album: String
+        album: String,
+        artworkData: Data? = nil
     ) throws {
         guard let file = AudioFile(path: fileURL.path), file.isValid else {
             throw MetadataError.unreadableFile
@@ -14,6 +15,12 @@ enum MetadataWriter {
         file.tag.title = title
         file.tag.artist = artist
         file.tag.album = album
+        if let artworkData {
+            let mimeType = artworkData.starts(with: [0x89, 0x50, 0x4E, 0x47]) ? "image/png" : "image/jpeg"
+            file.setPictures([
+                Picture(data: artworkData, mimeType: mimeType, description: "cover", pictureType: .frontCover)
+            ])
+        }
         try file.save()
     }
 
