@@ -1,7 +1,7 @@
 import AVFoundation
 import Foundation
 
-struct AudioMetadata {
+struct AudioMetadata: Sendable {
     let title: String
     let artist: String
     let album: String
@@ -10,6 +10,37 @@ struct AudioMetadata {
 }
 
 enum MetadataReader {
+    static func readMany(
+        from urls: [URL],
+        maxConcurrentReads: Int = 4
+    ) async -> [(url: URL, metadata: AudioMetadata)] {
+        guard !urls.isEmpty else { return [] }
+        let limit = max(1, maxConcurrentReads)
+
+        return await withTaskGroup(
+            of: (URL, AudioMetadata?).self,
+            returning: [(url: URL, metadata: AudioMetadata)].self
+        ) { group in
+            var iterator = urls.makeIterator()
+            for _ in 0..<min(limit, urls.count) {
+                if let url = iterator.next() {
+                    group.addTask { (url, try? await read(from: url)) }
+                }
+            }
+
+            var results: [(url: URL, metadata: AudioMetadata)] = []
+            while let (url, metadata) = await group.next() {
+                if let metadata {
+                    results.append((url: url, metadata: metadata))
+                }
+                if let nextURL = iterator.next() {
+                    group.addTask { (nextURL, try? await read(from: nextURL)) }
+                }
+            }
+            return results
+        }
+    }
+
     static func read(from url: URL) async throws -> AudioMetadata {
         let asset = AVURLAsset(url: url)
         let durationTime = try await asset.load(.duration)

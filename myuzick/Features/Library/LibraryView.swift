@@ -115,7 +115,9 @@ struct LibraryView: View {
                 let didAccess = folder.startAccessingSecurityScopedResource()
                 defer { if didAccess { folder.stopAccessingSecurityScopedResource() }; isImporting = false }
                 do {
-                    let files = try MusicFileStore.importFolder(from: folder)
+                    let files = try await Task.detached(priority: .utility) {
+                        try MusicFileStore.importFolder(from: folder)
+                    }.value
                     let count = await registerLinkedFiles(files, in: folder)
                     importMessage = "Linked \(count) original audio file(s). No audio files were copied."
                 } catch { importMessage = error.localizedDescription }
@@ -127,29 +129,53 @@ struct LibraryView: View {
         guard !urls.isEmpty else { return }
         isImporting = true
         Task { @MainActor in
-            var copies: [URL] = []
-            for url in urls { if let copy = try? MusicFileStore.importFile(from: url) { copies.append(copy) } }
-            for url in copies {
-                guard let metadata = try? await MetadataReader.read(from: url) else { continue }
-                modelContext.insert(Song(title: metadata.title, artist: metadata.artist, album: metadata.album, duration: metadata.duration, fileName: url.lastPathComponent, artworkData: metadata.artworkData))
+            defer { isImporting = false }
+
+            // Copy sequentially on a background task to avoid blocking the UI
+            // and prevent filename collisions when several files share a name.
+            let copies = await Task.detached(priority: .utility) {
+                urls.compactMap { try? MusicFileStore.importFile(from: $0) }
+            }.value
+
+            // Read tags concurrently with a small cap, then insert/save once.
+            let metadataItems = await MetadataReader.readMany(from: copies, maxConcurrentReads: 4)
+            for item in metadataItems {
+                let metadata = item.metadata
+                modelContext.insert(Song(
+                    title: metadata.title,
+                    artist: metadata.artist,
+                    album: metadata.album,
+                    duration: metadata.duration,
+                    fileName: item.url.lastPathComponent,
+                    artworkData: metadata.artworkData
+                ))
             }
             try? modelContext.save()
-            isImporting = false
-            importMessage = "Imported \(copies.count) copied audio file(s)."
+            importMessage = "Imported \(metadataItems.count) of \(urls.count) selected audio file(s)."
         }
     }
 
     private func registerLinkedFiles(_ files: [URL], in folder: URL) async -> Int {
         let existing = Set(songs.filter { MusicFileStore.isLinked($0.fileName) }.map(\.fileName))
-        var added = 0
-        for file in files {
-            let storedPath = MusicFileStore.storedPath(for: file, in: folder)
-            guard !existing.contains(storedPath), let metadata = try? await MetadataReader.read(from: file) else { continue }
-            modelContext.insert(Song(title: metadata.title, artist: metadata.artist, album: metadata.album, duration: metadata.duration, fileName: storedPath, artworkData: metadata.artworkData))
-            added += 1
+        let newFiles = files.filter {
+            !existing.contains(MusicFileStore.storedPath(for: $0, in: folder))
+        }
+        guard !newFiles.isEmpty else { return 0 }
+
+        let metadataItems = await MetadataReader.readMany(from: newFiles, maxConcurrentReads: 4)
+        for item in metadataItems {
+            let metadata = item.metadata
+            modelContext.insert(Song(
+                title: metadata.title,
+                artist: metadata.artist,
+                album: metadata.album,
+                duration: metadata.duration,
+                fileName: MusicFileStore.storedPath(for: item.url, in: folder),
+                artworkData: metadata.artworkData
+            ))
         }
         try? modelContext.save()
-        return added
+        return metadataItems.count
     }
 
     private func refreshLinkedFolder(silent: Bool = false) {
@@ -157,7 +183,9 @@ struct LibraryView: View {
         Task { @MainActor in
             defer { if access.accessed { access.url.stopAccessingSecurityScopedResource() } }
             do {
-                let files = try MusicFileStore.scanOriginalFolder(at: access.url)
+                let files = try await Task.detached(priority: .utility) {
+                    try MusicFileStore.scanOriginalFolder(at: access.url)
+                }.value
                 let available = Set(files.map { MusicFileStore.storedPath(for: $0, in: access.url) })
                 for song in songs where MusicFileStore.isLinked(song.fileName) && !available.contains(song.fileName) {
                     if audioPlayer.currentSong?.id == song.id { audioPlayer.stop() }
