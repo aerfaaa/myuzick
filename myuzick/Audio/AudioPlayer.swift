@@ -22,6 +22,8 @@ final class AudioPlayer: ObservableObject {
     private var timer: Timer?
     private var hapticEngine: CHHapticEngine?
     private var lastHapticTime: TimeInterval = 0
+    private var scrobbledSongID: UUID?
+    private var trackStartTimestamp = Date().timeIntervalSince1970
     private let frequencies: [Float] = [60, 230, 910, 3600, 14000]
 
     var eqGains: [Float] {
@@ -160,6 +162,8 @@ final class AudioPlayer: ObservableObject {
             audioFile = file
             currentSong = song
             currentTime = 0
+            trackStartTimestamp = Date().timeIntervalSince1970
+            scrobbledSongID = nil
             duration = Double(file.length) / file.processingFormat.sampleRate
             if !engine.isRunning { try engine.start() }
             scheduleAudio(from: 0)
@@ -212,6 +216,7 @@ final class AudioPlayer: ObservableObject {
                       let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime) else { return }
                 let elapsed = Double(playerTime.sampleTime) / playerTime.sampleRate
                 self.currentTime = min(self.duration, max(0, elapsed))
+                self.submitScrobbleIfDue()
             }
         }
     }
