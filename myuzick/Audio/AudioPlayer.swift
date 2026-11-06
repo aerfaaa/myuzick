@@ -13,6 +13,9 @@ final class AudioPlayer: ObservableObject {
     @Published private(set) var duration: Double = 0
     @Published private(set) var waveformLevel: Double = 0
     @Published private(set) var eqGains: [Float] = [0, 0, 0, 0, 0]
+    @Published private(set) var isShuffling = false
+    @Published private(set) var repeatMode: RepeatMode = .off
+    @Published private(set) var queueRevision = 0
     @Published var playbackError: String?
 
     private let engine = AVAudioEngine()
@@ -21,6 +24,7 @@ final class AudioPlayer: ObservableObject {
     private var audioFile: AVAudioFile?
     private var originalFolderAccess: (url: URL, accessed: Bool)?
     private var queue: [Song] = []
+    private var originalQueue: [Song] = []
     private var currentIndex = 0
     private var timer: Timer?
     private var hapticEngine: CHHapticEngine?
@@ -338,3 +342,4 @@ final class AudioPlayer: ObservableObject {
         } catch { }
     }
 }
+\n\nenum RepeatMode: String, CaseIterable {\n    case off, all, one\n    var next: RepeatMode {\n        switch self { case .off: return .all; case .all: return .one; case .one: return .off }\n    }\n}\n
