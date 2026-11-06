@@ -17,7 +17,7 @@ enum AppFont {
         guard let filename = UserDefaults.standard.string(forKey: fontFileKey) else { return }
         let url = fontsDirectory.appendingPathComponent(filename)
         guard FileManager.default.fileExists(atPath: url.path) else { return }
-        register(url: url, persist: false)
+        try? register(url: url, persist: false)
     }
 
     static func install(from source: URL) throws {
