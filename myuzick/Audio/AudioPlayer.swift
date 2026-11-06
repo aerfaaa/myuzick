@@ -58,6 +58,56 @@ final class AudioPlayer: ObservableObject {
         }
     }
 
+    var upcomingSongs: [Song] {
+        guard !queue.isEmpty else { return [] }
+        return Array(queue.dropFirst(min(currentIndex + 1, queue.count)))
+    }
+
+    var currentQueue: [Song] { queue }
+
+    func setShuffle(_ enabled: Bool) {
+        guard isShuffling != enabled else { return }
+        isShuffling = enabled
+        guard let current = currentSong else { return }
+        let played = Array(queue.prefix(currentIndex + 1))
+        if enabled {
+            originalQueue = queue
+            queue = played + queue.dropFirst(currentIndex + 1).shuffled()
+        } else {
+            let playedIDs = Set(played.map(\.id))
+            let restored = originalQueue.filter { !playedIDs.contains($0.id) }
+            queue = played + restored
+        }
+        queueRevision += 1
+    }
+
+    func cycleRepeatMode() { repeatMode = repeatMode.next }
+
+    func addToQueue(_ song: Song) {
+        queue.append(song)
+        queueRevision += 1
+    }
+
+    func playNext(_ song: Song) {
+        queue.insert(song, at: min(currentIndex + 1, queue.count))
+        queueRevision += 1
+    }
+
+    func removeFromQueue(at index: Int) {
+        guard queue.indices.contains(index), index != currentIndex else { return }
+        queue.remove(at: index)
+        if index < currentIndex { currentIndex -= 1 }
+        queueRevision += 1
+    }
+
+    func moveQueueItem(from source: Int, to destination: Int) {
+        guard queue.indices.contains(source), queue.indices.contains(destination), source != currentIndex else { return }
+        let item = queue.remove(at: source)
+        let adjusted = source < destination ? destination - 1 : destination
+        queue.insert(item, at: max(currentIndex + 1, min(adjusted, queue.count)))
+        queueRevision += 1
+    }
+
     func play(_ song: Song, from songs: [Song]? = nil) {
         if let songs {
             queue = songs
@@ -219,8 +269,13 @@ final class AudioPlayer: ObservableObject {
 
     private func trackFinished() {
         guard isPlaying else { return }
-        if currentIndex + 1 < queue.count {
+        if repeatMode == .one {
+            loadCurrentSong()
+        } else if currentIndex + 1 < queue.count {
             currentIndex += 1
+            loadCurrentSong()
+        } else if repeatMode == .all, !queue.isEmpty {
+            currentIndex = 0
             loadCurrentSong()
         } else {
             isPlaying = false
@@ -343,3 +398,14 @@ final class AudioPlayer: ObservableObject {
     }
 }
 \n\nenum RepeatMode: String, CaseIterable {\n    case off, all, one\n    var next: RepeatMode {\n        switch self { case .off: return .all; case .all: return .one; case .one: return .off }\n    }\n}\n
+
+enum RepeatMode: String, CaseIterable {
+    case off, all, one
+    var next: RepeatMode {
+        switch self {
+        case .off: return .all
+        case .all: return .one
+        case .one: return .off
+        }
+    }
+}
