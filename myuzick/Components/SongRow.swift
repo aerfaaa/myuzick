@@ -13,11 +13,11 @@ struct SongRow: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(song.displayTitle)
-                        .font(.body.weight(.medium))
+                        .font(AppFont.font(size: 17, weight: .medium))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                     Text(song.artist)
-                        .font(.subheadline)
+                        .font(AppFont.font(size: 15))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -25,7 +25,7 @@ struct SongRow: View {
                 Spacer(minLength: 8)
 
                 Text(song.duration.formattedTime)
-                    .font(.caption.monospacedDigit())
+                    .font(AppFont.font(size: 12).monospacedDigit())
                     .foregroundStyle(.tertiary)
             }
             .contentShape(Rectangle())
