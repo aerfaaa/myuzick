@@ -1,4 +1,6 @@
-import SwiftUI\nimport UniformTypeIdentifiers\nimport UIKit
+import SwiftUI
+import UniformTypeIdentifiers
+import UIKit
 
 struct SettingsView: View {
     @EnvironmentObject private var audioPlayer: AudioPlayer
@@ -7,7 +9,14 @@ struct SettingsView: View {
     @AppStorage("lastfmAPIKey") private var lastfmAPIKey = ""
     @AppStorage("lastfmSharedSecret") private var lastfmSharedSecret = ""
     @AppStorage("lastfmSessionKey") private var lastfmSessionKey = ""
-    @State private var showLastFMDetails = false\n    @State private var showLastFMAlert = false\n    @State private var lastFMMessage = ""\n    @State private var isConnectingLastFM = false\n    @AppStorage("lastfmPendingAuthToken") private var lastfmPendingAuthToken = ""\n    @State private var showingFontPicker = false\n    @State private var fontMessage: String?\n    @AppStorage("myuzick.customFontPostScriptName") private var customFontName = ""
+    @State private var showLastFMDetails = false
+    @State private var showLastFMAlert = false
+    @State private var lastFMMessage = ""
+    @State private var isConnectingLastFM = false
+    @AppStorage("lastfmPendingAuthToken") private var lastfmPendingAuthToken = ""
+    @State private var showingFontPicker = false
+    @State private var fontMessage: String?
+    @AppStorage("myuzick.customFontPostScriptName") private var customFontName = ""
 
     private func connectLastFM() {
         isConnectingLastFM = true
@@ -69,7 +78,18 @@ struct SettingsView: View {
                     Button("Reset equalizer") { audioPlayer.resetEQ() }
                 }
 
-                Section("Appearance") {\n                    LabeledContent("Interface font", value: customFontName.isEmpty ? "System" : customFontName)\n                    Button("Upload TTF / OTF font") { showingFontPicker = true }\n                    if !customFontName.isEmpty {\n                        Button("Use system font", role: .destructive) { AppFont.remove(); customFontName = "" }\n                    }\n                    Text("The selected font is registered locally and used as the app default. Some system-provided controls retain their native typeface.")\n                        .font(.caption)\n                        .foregroundStyle(.secondary)\n                }\n\n                Section("Haptics") {
+                Section("Appearance") {
+                    LabeledContent("Interface font", value: customFontName.isEmpty ? "System" : customFontName)
+                    Button("Upload TTF / OTF font") { showingFontPicker = true }
+                    if !customFontName.isEmpty {
+                        Button("Use system font", role: .destructive) { AppFont.remove(); customFontName = "" }
+                    }
+                    Text("The selected font is registered locally and used as the app default. Some system-provided controls retain their native typeface.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Haptics") {
                     Toggle("Waveform haptics", isOn: $waveformHapticsEnabled)
                     Text("Uses audio intensity to trigger subtle haptic pulses while music plays. Availability depends on your iPhone's haptic hardware.")
                         .font(.caption)
@@ -114,8 +134,22 @@ struct SettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color(uiColor: .systemBackground))
-            .navigationTitle("Settings")\n            .fileImporter(isPresented: $showingFontPicker, allowedContentTypes: [.font], allowsMultipleSelection: false) { result in\n                switch result {\n                case .success(let urls):\n                    if let url = urls.first {\n                        do { try AppFont.install(from: url) }\n                        catch { fontMessage = error.localizedDescription }\n                    }\n                case .failure(let error): fontMessage = error.localizedDescription\n                }\n            }\n            .alert("Font", isPresented: Binding(get: { fontMessage != nil }, set: { if !$0 { fontMessage = nil } })) {\n                Button("OK", role: .cancel) { fontMessage = nil }\n            } message: { Text(fontMessage ?? "") }
-            .alert("Last.fm", isPresented: $showLastFMAlert) { Button("OK", role: .cancel) { } } message: { Text(lastFMMessage) }\n            .alert("Last.fm setup", isPresented: $showLastFMDetails) {
+            .navigationTitle("Settings")
+            .fileImporter(isPresented: $showingFontPicker, allowedContentTypes: [.font], allowsMultipleSelection: false) { result in
+                switch result {
+                case .success(let urls):
+                    if let url = urls.first {
+                        do { try AppFont.install(from: url) }
+                        catch { fontMessage = error.localizedDescription }
+                    }
+                case .failure(let error): fontMessage = error.localizedDescription
+                }
+            }
+            .alert("Font", isPresented: Binding(get: { fontMessage != nil }, set: { if !$0 { fontMessage = nil } })) {
+                Button("OK", role: .cancel) { fontMessage = nil }
+            } message: { Text(fontMessage ?? "") }
+            .alert("Last.fm", isPresented: $showLastFMAlert) { Button("OK", role: .cancel) { } } message: { Text(lastFMMessage) }
+            .alert("Last.fm setup", isPresented: $showLastFMDetails) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text("Create a Last.fm API application once to obtain an API key and shared secret. Tap Connect Last.fm, approve access in the browser, then return and finish login. myuzick obtains and stores the session key automatically. Scrobbling starts after at least half the track has played, up to the four-minute threshold.")
