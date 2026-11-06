@@ -48,6 +48,7 @@ final class AudioPlayer: ObservableObject {
     func resetEQ() {
         equalizer.bands.enumerated().forEach { index, band in
             band.gain = 0
+            eqGains[index] = 0
             UserDefaults.standard.set(Float(0), forKey: "eqGain_\(index)")
         }
     }
@@ -138,6 +139,7 @@ final class AudioPlayer: ObservableObject {
             band.frequency = frequencies[index]
             band.bandwidth = 1.0
             band.gain = UserDefaults.standard.object(forKey: "eqGain_\(index)") as? Float ?? 0
+            eqGains[index] = band.gain
             band.bypass = false
         }
         engine.attach(playerNode)
