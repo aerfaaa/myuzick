@@ -2,7 +2,7 @@ name: Build myuzick
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/myuzick-player-upgrade]
   pull_request:
     branches: [main]
   workflow_dispatch:
