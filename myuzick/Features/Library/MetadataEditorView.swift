@@ -80,7 +80,7 @@ struct MetadataEditorView: View {
                 if let access, access.accessed { access.url.stopAccessingSecurityScopedResource() }
                 isSaving = false
             }
-            if MusicFileStore.isLinked(song.fileName) && access == nil {
+            if MusicFileStore.isLinked(song.fileName) && (access == nil || access?.accessed != true) {
                 errorMessage = "myuzick no longer has permission to access the linked folder. Relink it in your library."
                 return
             }
