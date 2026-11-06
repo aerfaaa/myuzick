@@ -68,7 +68,7 @@ final class AudioPlayer: ObservableObject {
     func setShuffle(_ enabled: Bool) {
         guard isShuffling != enabled else { return }
         isShuffling = enabled
-        guard let current = currentSong else { return }
+        guard currentSong != nil else { return }
         let played = Array(queue.prefix(currentIndex + 1))
         if enabled {
             originalQueue = queue
@@ -110,14 +110,21 @@ final class AudioPlayer: ObservableObject {
 
     func play(_ song: Song, from songs: [Song]? = nil) {
         if let songs {
+            originalQueue = songs
             queue = songs
             currentIndex = songs.firstIndex(where: { $0.id == song.id }) ?? 0
+            if isShuffling {
+                let played = Array(queue.prefix(currentIndex + 1))
+                queue = played + queue.dropFirst(currentIndex + 1).shuffled()
+            }
         } else if queue.isEmpty || !queue.contains(where: { $0.id == song.id }) {
             queue = [song]
+            originalQueue = [song]
             currentIndex = 0
         } else {
             currentIndex = queue.firstIndex(where: { $0.id == song.id }) ?? 0
         }
+        queueRevision += 1
         loadCurrentSong()
     }
 
@@ -151,8 +158,11 @@ final class AudioPlayer: ObservableObject {
     }
 
     func skipToNext() {
-        guard !queue.isEmpty else { return }
-        currentIndex = (currentIndex + 1) % queue.count
+        guard currentIndex + 1 < queue.count else {
+            if repeatMode == .all, !queue.isEmpty { currentIndex = 0; loadCurrentSong() }
+            return
+        }
+        currentIndex += 1
         loadCurrentSong()
     }
 
@@ -175,7 +185,10 @@ final class AudioPlayer: ObservableObject {
         currentTime = 0
         duration = 0
         queue = []
+        originalQueue = []
         currentIndex = 0
+        if let access = originalFolderAccess, access.accessed { access.url.stopAccessingSecurityScopedResource() }
+        originalFolderAccess = nil
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
