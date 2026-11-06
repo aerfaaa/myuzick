@@ -11,7 +11,7 @@ struct LibraryView: View {
     @State private var showingFolderPicker = false
     @State private var searchText = ""
     @State private var importMessage: String?
-    @State private var isImporting = false
+    @State private var isImporting = false\n    @State private var editingSong: Song?
 
     private var filteredSongs: [Song] {
         guard !searchText.isEmpty else { return songs }
@@ -41,7 +41,7 @@ struct LibraryView: View {
                     }
                 }
                 .searchable(text: $searchText, prompt: "Search your music")
-                .sheet(isPresented: $showingSettings) {
+                .sheet(item: $editingSong) { song in\n                    MetadataEditorView(song: song)\n                }\n                .sheet(isPresented: $showingSettings) {
                     SettingsView().environmentObject(audioPlayer).presentationDetents([.large]).presentationDragIndicator(.visible)
                 }
                 .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.audio], allowsMultipleSelection: true, onCompletion: handleImport)
@@ -73,7 +73,7 @@ struct LibraryView: View {
         List {
             Section {
                 ForEach(filteredSongs) { song in
-                    SongRow(song: song) { audioPlayer.play(song, from: filteredSongs) }.listRowBackground(Color.clear)
+                    SongRow(song: song) { audioPlayer.play(song, from: filteredSongs) }\n                        .contextMenu {\n                            Button { editingSong = song } label: { Label("Edit Metadata", systemImage: "pencil") }\n                            Button { audioPlayer.addToQueue(song) } label: { Label("Add to Queue", systemImage: "text.badge.plus") }\n                            Button { audioPlayer.playNext(song) } label: { Label("Play Next", systemImage: "text.insert") }\n                        }\n                        .listRowBackground(Color.clear)
                 }.onDelete(perform: deleteSongs)
             } header: {
                 HStack {
