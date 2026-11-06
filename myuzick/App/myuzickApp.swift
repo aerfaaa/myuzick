@@ -9,7 +9,8 @@ struct myuzickApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
-                .environmentObject(audioPlayer)\n                .environment(\.audioPlayerReference, audioPlayer)
+                .environmentObject(audioPlayer)
+                .environment(\.audioPlayerReference, audioPlayer)
                 .preferredColorScheme(.dark)
         }
         .modelContainer(for: [Song.self, Playlist.self])
