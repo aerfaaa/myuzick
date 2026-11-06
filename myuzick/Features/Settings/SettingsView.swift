@@ -1,4 +1,4 @@
-import SwiftUI
+import SwiftUI\nimport UniformTypeIdentifiers
 
 struct SettingsView: View {
     @EnvironmentObject private var audioPlayer: AudioPlayer
@@ -7,7 +7,7 @@ struct SettingsView: View {
     @AppStorage("lastfmAPIKey") private var lastfmAPIKey = ""
     @AppStorage("lastfmSharedSecret") private var lastfmSharedSecret = ""
     @AppStorage("lastfmSessionKey") private var lastfmSessionKey = ""
-    @State private var showLastFMDetails = false
+    @State private var showLastFMDetails = false\n    @State private var showingFontPicker = false\n    @State private var fontMessage: String?\n    @AppStorage("myuzick.customFontPostScriptName") private var customFontName = ""
 
     private let bands = ["60 Hz", "230 Hz", "910 Hz", "3.6 kHz", "14 kHz"]
 
@@ -35,7 +35,7 @@ struct SettingsView: View {
                     Button("Reset equalizer") { audioPlayer.resetEQ() }
                 }
 
-                Section("Haptics") {
+                Section("Appearance") {\n                    LabeledContent("Interface font", value: customFontName.isEmpty ? "System" : customFontName)\n                    Button("Upload TTF / OTF font") { showingFontPicker = true }\n                    if !customFontName.isEmpty {\n                        Button("Use system font", role: .destructive) { AppFont.remove(); customFontName = "" }\n                    }\n                    Text("The selected font is registered locally and used as the app default. Some system-provided controls retain their native typeface.")\n                        .font(.caption)\n                        .foregroundStyle(.secondary)\n                }\n\n                Section("Haptics") {
                     Toggle("Waveform haptics", isOn: $waveformHapticsEnabled)
                     Text("Uses audio intensity to trigger subtle haptic pulses while music plays. Availability depends on your iPhone's haptic hardware.")
                         .font(.caption)
@@ -67,7 +67,7 @@ struct SettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color(uiColor: .systemBackground))
-            .navigationTitle("Settings")
+            .navigationTitle("Settings")\n            .fileImporter(isPresented: $showingFontPicker, allowedContentTypes: [.font], allowsMultipleSelection: false) { result in\n                switch result {\n                case .success(let urls):\n                    if let url = urls.first {\n                        do { try AppFont.install(from: url); customFontName = UIFont(name: customFontName, size: 16) == nil ? customFontName : customFontName }\n                        catch { fontMessage = error.localizedDescription }\n                    }\n                case .failure(let error): fontMessage = error.localizedDescription\n                }\n            }\n            .alert("Font", isPresented: Binding(get: { fontMessage != nil }, set: { if !$0 { fontMessage = nil } })) {\n                Button("OK", role: .cancel) { fontMessage = nil }\n            } message: { Text(fontMessage ?? "") }
             .alert("Last.fm setup", isPresented: $showLastFMDetails) {
                 Button("OK", role: .cancel) { }
             } message: {
