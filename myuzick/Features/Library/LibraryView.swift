@@ -7,6 +7,7 @@ struct LibraryView: View {
     @EnvironmentObject private var audioPlayer: AudioPlayer
     @Query(sort: \Song.dateAdded, order: .reverse) private var songs: [Song]
     @State private var showingImporter = false
+    @State private var showingSettings = false
     @State private var showingFolderPicker = false
     @State private var searchText = ""
     @State private var importMessage: String?
@@ -26,6 +27,12 @@ struct LibraryView: View {
             .navigationTitle("myuzick")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showingSettings = true } label: {
+                        Image(systemName: "slider.horizontal.3")
+                    }
+                    .accessibilityLabel("Settings")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button { showingImporter = true } label: { Label("Choose music files", systemImage: "music.note") }
@@ -37,6 +44,12 @@ struct LibraryView: View {
                 }
             }
             .searchable(text: $searchText, prompt: "Search your music")
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
+                    .environmentObject(audioPlayer)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
             .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.mp3], allowsMultipleSelection: true, onCompletion: handleImport)
             .fileImporter(isPresented: $showingFolderPicker, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleFolderImport)
             .safeAreaInset(edge: .bottom, spacing: 0) {
